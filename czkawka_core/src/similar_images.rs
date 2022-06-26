@@ -45,11 +45,6 @@ pub struct ProgressData {
     pub images_to_check: usize,
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Serialize, Deserialize)]
-pub enum Similarity {
-    Similar(u32),
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FileEntry {
     pub path: PathBuf,
@@ -57,7 +52,7 @@ pub struct FileEntry {
     pub dimensions: String,
     pub modified_date: u64,
     pub hash: Vec<u8>,
-    pub similarity: Similarity,
+    pub similarity: u32,
 }
 
 /// Used by CLI tool when we cannot use directly values
@@ -100,7 +95,7 @@ pub struct SimilarImages {
     maximal_file_size: u64,
     image_hashes: HashMap<Vec<u8>, Vec<FileEntry>>, // Hashmap with image hashes and Vector with names of files
     stopped_search: bool,
-    similarity: Similarity,
+    similarity: u32,
     images_to_check: HashMap<String, FileEntry>,
     hash_size: u8,
     hash_alg: HashAlg,
@@ -143,7 +138,7 @@ impl SimilarImages {
             maximal_file_size: u64::MAX,
             image_hashes: Default::default(),
             stopped_search: false,
-            similarity: Similarity::Similar(1),
+            similarity: 1,
             images_to_check: Default::default(),
             hash_size: 8,
             hash_alg: HashAlg::Gradient,
@@ -238,7 +233,7 @@ impl SimilarImages {
             t => t,
         };
     }
-    pub fn set_similarity(&mut self, similarity: Similarity) {
+    pub fn set_similarity(&mut self, similarity: u32) {
         self.similarity = similarity;
     }
 
@@ -443,7 +438,7 @@ impl SimilarImages {
                                     },
 
                                     hash: Vec::new(),
-                                    similarity: Similarity::Similar(0),
+                                    similarity: 0,
                                 };
 
                                 fe_result.push((current_file_name.to_string_lossy().to_string(), fe));
@@ -679,7 +674,7 @@ impl SimilarImages {
 
     fn find_similar_hashes(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&futures::channel::mpsc::UnboundedSender<ProgressData>>) -> bool {
         let hash_map_modification = SystemTime::now();
-        let Similarity::Similar(similarity) = self.similarity;
+        let similarity = self.similarity;
 
         // Results
         let mut collected_similar_images: HashMap<Vec<u8>, Vec<FileEntry>> = Default::default();
@@ -781,7 +776,7 @@ impl SimilarImages {
 
                     let mut vec_file_entry: Vec<_> = all_hashed_images.get(&original_hash).unwrap().clone();
                     for fe in &mut vec_file_entry {
-                        fe.similarity = Similarity::Similar(similarity)
+                        fe.similarity = similarity
                     }
                     let entry = collected_similar_images.entry(original_hash.clone()).or_insert_with(Vec::new);
                     entry.append(&mut vec_file_entry);
@@ -1078,14 +1073,14 @@ pub fn load_hashes_from_file(
 
 fn get_cache_file(hash_size: &u8, hash_alg: &HashAlg, image_filter: &FilterType) -> String {
     format!(
-        "cache_similar_images_{}_{}_{}.bin",
+        "cache_similar_images_{}_{}_{}_50.bin",
         hash_size,
         convert_algorithm_to_string(hash_alg),
         convert_filters_to_string(image_filter),
     )
 }
 
-pub fn get_string_from_similarity(similarity: &Similarity, hash_size: u8) -> String {
+pub fn get_string_from_similarity(similarity: &u32, hash_size: u8) -> String {
     let index_preset = match hash_size {
         8 => 0,
         16 => 1,
@@ -1094,52 +1089,44 @@ pub fn get_string_from_similarity(similarity: &Similarity, hash_size: u8) -> Str
         _ => panic!(),
     };
 
-    match similarity {
-        // Similarity::None => {
-        //     panic!()
-        // }
-        Similarity::Similar(h) => {
-            // #[cfg(debug_assertions)]
-            // {
-            //     if *h <= SIMILAR_VALUES[index_preset][0] {
-            //         format!("{} {}", flc!("core_similarity_very_high"), *h)
-            //     } else if *h <= SIMILAR_VALUES[index_preset][1] {
-            //         format!("{} {}", flc!("core_similarity_high"), *h)
-            //     } else if *h <= SIMILAR_VALUES[index_preset][2] {
-            //         format!("{} {}", flc!("core_similarity_medium"), *h)
-            //     } else if *h <= SIMILAR_VALUES[index_preset][3] {
-            //         format!("{} {}", flc!("core_similarity_small"), *h)
-            //     } else if *h <= SIMILAR_VALUES[index_preset][4] {
-            //         format!("{} {}", flc!("core_similarity_very_small"), *h)
-            //     } else if *h <= SIMILAR_VALUES[index_preset][5] {
-            //         format!("{} {}", flc!("core_similarity_minimal"), *h)
-            //     } else {
-            //         panic!();
-            //     }
-            // }
-            // #[cfg(not(debug_assertions))]
-            {
-                if *h <= SIMILAR_VALUES[index_preset][0] {
-                    flc!("core_similarity_very_high")
-                } else if *h <= SIMILAR_VALUES[index_preset][1] {
-                    flc!("core_similarity_high")
-                } else if *h <= SIMILAR_VALUES[index_preset][2] {
-                    flc!("core_similarity_medium")
-                } else if *h <= SIMILAR_VALUES[index_preset][3] {
-                    flc!("core_similarity_small")
-                } else if *h <= SIMILAR_VALUES[index_preset][4] {
-                    flc!("core_similarity_very_small")
-                } else if *h <= SIMILAR_VALUES[index_preset][5] {
-                    flc!("core_similarity_minimal")
-                } else {
-                    panic!();
-                }
-            }
-        }
+    // #[cfg(debug_assertions)]
+    // {
+    //     if *similarity <= SIMILAR_VALUES[index_preset][0] {
+    //         format!("{} {}", flc!("core_similarity_very_high"), *similarity)
+    //     } else if *similarity <= SIMILAR_VALUES[index_preset][1] {
+    //         format!("{} {}", flc!("core_similarity_high"), *similarity)
+    //     } else if *similarity <= SIMILAR_VALUES[index_preset][2] {
+    //         format!("{} {}", flc!("core_similarity_medium"), *similarity)
+    //     } else if *similarity <= SIMILAR_VALUES[index_preset][3] {
+    //         format!("{} {}", flc!("core_similarity_small"), *similarity)
+    //     } else if *similarity <= SIMILAR_VALUES[index_preset][4] {
+    //         format!("{} {}", flc!("core_similarity_very_small"), *similarity)
+    //     } else if *similarity <= SIMILAR_VALUES[index_preset][5] {
+    //         format!("{} {}", flc!("core_similarity_minimal"), *similarity)
+    //     } else {
+    //         panic!();
+    //     }
+    // }
+    // #[cfg(not(debug_assertions))]
+
+    if *similarity <= SIMILAR_VALUES[index_preset][0] {
+        flc!("core_similarity_very_high")
+    } else if *similarity <= SIMILAR_VALUES[index_preset][1] {
+        flc!("core_similarity_high")
+    } else if *similarity <= SIMILAR_VALUES[index_preset][2] {
+        flc!("core_similarity_medium")
+    } else if *similarity <= SIMILAR_VALUES[index_preset][3] {
+        flc!("core_similarity_small")
+    } else if *similarity <= SIMILAR_VALUES[index_preset][4] {
+        flc!("core_similarity_very_small")
+    } else if *similarity <= SIMILAR_VALUES[index_preset][5] {
+        flc!("core_similarity_minimal")
+    } else {
+        panic!();
     }
 }
 
-pub fn return_similarity_from_similarity_preset(similarity_preset: &SimilarityPreset, hash_size: u8) -> Similarity {
+pub fn return_similarity_from_similarity_preset(similarity_preset: &SimilarityPreset, hash_size: u8) -> u32 {
     let index_preset = match hash_size {
         8 => 0,
         16 => 1,
@@ -1148,12 +1135,12 @@ pub fn return_similarity_from_similarity_preset(similarity_preset: &SimilarityPr
         _ => panic!(),
     };
     match similarity_preset {
-        SimilarityPreset::VeryHigh => Similarity::Similar(SIMILAR_VALUES[index_preset][0]),
-        SimilarityPreset::High => Similarity::Similar(SIMILAR_VALUES[index_preset][1]),
-        SimilarityPreset::Medium => Similarity::Similar(SIMILAR_VALUES[index_preset][2]),
-        SimilarityPreset::Small => Similarity::Similar(SIMILAR_VALUES[index_preset][3]),
-        SimilarityPreset::VerySmall => Similarity::Similar(SIMILAR_VALUES[index_preset][4]),
-        SimilarityPreset::Minimal => Similarity::Similar(SIMILAR_VALUES[index_preset][5]),
+        SimilarityPreset::VeryHigh => SIMILAR_VALUES[index_preset][0],
+        SimilarityPreset::High => SIMILAR_VALUES[index_preset][1],
+        SimilarityPreset::Medium => SIMILAR_VALUES[index_preset][2],
+        SimilarityPreset::Small => SIMILAR_VALUES[index_preset][3],
+        SimilarityPreset::VerySmall => SIMILAR_VALUES[index_preset][4],
+        SimilarityPreset::Minimal => SIMILAR_VALUES[index_preset][5],
         SimilarityPreset::None => panic!(""),
     }
 }

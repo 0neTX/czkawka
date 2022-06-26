@@ -842,7 +842,7 @@ fn load_cache_from_file(text_messages: &mut Messages, delete_outdated_cache: boo
 }
 
 fn get_cache_file() -> String {
-    "cache_same_music.bin".to_string()
+    "cache_same_music_50.bin".to_string()
 }
 
 impl Default for SameMusic {

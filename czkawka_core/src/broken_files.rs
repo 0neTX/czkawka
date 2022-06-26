@@ -776,7 +776,7 @@ fn load_cache_from_file(text_messages: &mut Messages, delete_outdated_cache: boo
 }
 
 fn get_cache_file() -> String {
-    "cache_broken_files.bin".to_string()
+    "cache_broken_files_50.bin".to_string()
 }
 
 fn check_extension_availability(file_name_lowercase: &str) -> TypeOfFile {

@@ -325,7 +325,7 @@ pub fn connect_button_search(
 
                 let ignore_same_size = check_button_image_ignore_same_size.is_active();
 
-                let similarity = similar_images::Similarity::Similar(scale_similarity_similar_images.value() as u32);
+                let similarity = scale_similarity_similar_images.value() as u32;
 
                 let delete_outdated_cache = check_button_settings_similar_images_delete_outdated_cache.is_active();
 

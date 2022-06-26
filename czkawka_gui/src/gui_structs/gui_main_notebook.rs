@@ -4,7 +4,7 @@ use gtk4::{Builder, CheckButton, ComboBoxText, Entry, EventControllerKey, Gestur
 
 use czkawka_core::common_dir_traversal::CheckingMethod;
 use czkawka_core::localizer_core::{fnc_get_similarity_minimal, fnc_get_similarity_very_high};
-use czkawka_core::similar_images::{get_string_from_similarity, Similarity, SIMILAR_VALUES};
+use czkawka_core::similar_images::{get_string_from_similarity, SIMILAR_VALUES};
 
 use crate::flg;
 use crate::help_combo_box::{BIG_FILES_CHECK_METHOD_COMBO_BOX, DUPLICATES_CHECK_METHOD_COMBO_BOX, IMAGES_HASH_SIZE_COMBO_BOX};
@@ -412,20 +412,19 @@ impl GuiMainNotebook {
             let hash_size = IMAGES_HASH_SIZE_COMBO_BOX[hash_size_index];
             match hash_size {
                 8 => {
-                    self.label_similar_images_minimal_similarity
-                        .set_text(&get_string_from_similarity(&Similarity::Similar(SIMILAR_VALUES[0][5]), 8));
+                    self.label_similar_images_minimal_similarity.set_text(&get_string_from_similarity(&SIMILAR_VALUES[0][5], 8));
                 }
                 16 => {
                     self.label_similar_images_minimal_similarity
-                        .set_text(&get_string_from_similarity(&Similarity::Similar(SIMILAR_VALUES[1][5]), 16));
+                        .set_text(&get_string_from_similarity(&SIMILAR_VALUES[1][5], 16));
                 }
                 32 => {
                     self.label_similar_images_minimal_similarity
-                        .set_text(&get_string_from_similarity(&Similarity::Similar(SIMILAR_VALUES[2][5]), 32));
+                        .set_text(&get_string_from_similarity(&SIMILAR_VALUES[2][5], 32));
                 }
                 64 => {
                     self.label_similar_images_minimal_similarity
-                        .set_text(&get_string_from_similarity(&Similarity::Similar(SIMILAR_VALUES[3][5]), 64));
+                        .set_text(&get_string_from_similarity(&SIMILAR_VALUES[3][5], 64));
                 }
                 _ => panic!(),
             }
