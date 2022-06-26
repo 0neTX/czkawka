@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs::{File, Metadata};
 use std::io::Write;
 use std::io::*;
@@ -138,7 +138,7 @@ impl SimilarImages {
             maximal_file_size: u64::MAX,
             image_hashes: Default::default(),
             stopped_search: false,
-            similarity: 1,
+            similarity: 0,
             images_to_check: Default::default(),
             hash_size: 8,
             hash_alg: HashAlg::Gradient,
@@ -683,7 +683,7 @@ impl SimilarImages {
         mem::swap(&mut all_hashed_images, &mut self.image_hashes);
 
         let all_hashes: Vec<_> = all_hashed_images.keys().collect();
-        let mut already_used_hashes: HashSet<_> = Default::default(); // List of already user hahes
+        let mut already_used_hashes: HashSet<_> = Default::default(); // List of already user hashes
 
         for (hash, vec_file_entry) in all_hashed_images.clone() {
             // There exists 2 or more images with same hash
@@ -758,7 +758,7 @@ impl SimilarImages {
 
             // Creating variables which will allow to easily iterate from smaller to bigger similarity
             // It is required, because at first I want to find the most similar images
-            let mut similarity_struct: HashMap<u32, Vec<(Vec<u8>, Vec<_>)>> = Default::default();
+            let mut similarity_struct: BTreeMap<u32, Vec<(Vec<u8>, Vec<_>)>> = Default::default();
             for (original_hash, vec_similar_hashes) in collected_similar_hashes {
                 for (similarity, similarity_hashes) in vec_similar_hashes {
                     let entry = similarity_struct.entry(similarity).or_insert_with(Vec::new);
@@ -768,17 +768,31 @@ impl SimilarImages {
 
             // Adding normal hashes with similarity > 0
             for (similarity, vec_similarity_hashes) in similarity_struct {
+                debug_assert!(similarity != 0);
                 for (original_hash, similar_hash) in vec_similarity_hashes {
                     // Hash was used so we cannot use it in any other place
                     if already_used_hashes.contains(&similar_hash) {
                         continue;
                     }
+                    // Already original_hash was used before as similar_hash
+                    if already_used_hashes.contains(&original_hash) && collected_similar_images.get(&original_hash).is_none() {
+                        continue;
+                    }
 
-                    let mut vec_file_entry: Vec<_> = all_hashed_images.get(&original_hash).unwrap().clone();
+                    let entry = collected_similar_images.entry(original_hash.clone()).or_insert_with(Vec::new);
+
+                    // Add original hash if not existed before
+                    if entry.is_empty() {
+                        debug_assert!(!already_used_hashes.contains(&original_hash));
+                        let mut vec_file_entry: Vec<_> = all_hashed_images.get(&original_hash).unwrap().clone();
+                        entry.append(&mut vec_file_entry);
+                    }
+
+                    // Add similar hashes
+                    let mut vec_file_entry: Vec<_> = all_hashed_images.get(&similar_hash).unwrap().clone();
                     for fe in &mut vec_file_entry {
                         fe.similarity = similarity
                     }
-                    let entry = collected_similar_images.entry(original_hash.clone()).or_insert_with(Vec::new);
                     entry.append(&mut vec_file_entry);
 
                     already_used_hashes.insert(similar_hash);
@@ -793,11 +807,16 @@ impl SimilarImages {
             let mut result_hashset: HashSet<String> = Default::default();
             let mut found = false;
             for (_hash, vec_file_entry) in collected_similar_images.iter() {
+                if vec_file_entry.len() == 1 {
+                    println!("Empty Element {:?}", vec_file_entry);
+                    found = true;
+                    continue;
+                }
                 for file_entry in vec_file_entry {
                     let st = file_entry.path.to_string_lossy().to_string();
                     if result_hashset.contains(&st) {
                         found = true;
-                        println!("Invalid Element {}", st);
+                        println!("Duplicated Element {}", st);
                     } else {
                         result_hashset.insert(st);
                     }
