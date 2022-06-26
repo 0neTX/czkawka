@@ -730,67 +730,67 @@ impl SimilarImages {
         };
         //// PROGRESS THREAD END
 
-        // Algorythm:
-        // Check fo TODO
+        if similarity > 0 {
+            // Checking for similar hashes in BKTree with multithreading
+            let collected_similar_hashes: HashMap<_, _> = all_hashes
+                .into_par_iter()
+                .map(|hash_to_check| {
+                    atomic_mode_counter.fetch_add(1, Ordering::Relaxed);
+                    if stop_receiver.is_some() && stop_receiver.unwrap().try_recv().is_ok() {
+                        check_was_stopped.store(true, Ordering::Relaxed);
+                        return None;
+                    }
 
-        // Checking for similar hashes in BKTree with multithreading
-        let collected_similar_hashes: HashMap<_, _> = all_hashes
-            .into_par_iter()
-            .map(|hash_to_check| {
-                atomic_mode_counter.fetch_add(1, Ordering::Relaxed);
-                if stop_receiver.is_some() && stop_receiver.unwrap().try_recv().is_ok() {
-                    check_was_stopped.store(true, Ordering::Relaxed);
-                    return None;
+                    Some((
+                        hash_to_check,
+                        self.bktree
+                            .find(hash_to_check, similarity)
+                            .filter(|(similarity, _hash)| *similarity != 0)
+                            .collect::<Vec<_>>(),
+                    ))
+                })
+                .while_some()
+                .collect();
+
+            // Stop thread
+            progress_thread_run.store(false, Ordering::Relaxed);
+            progress_thread_handle.join().unwrap();
+
+            // Stop when user stopped search
+            if check_was_stopped.load(Ordering::Relaxed) {
+                return false;
+            }
+
+            // Creating variables which will allow to easily iterate from smaller to bigger similarity
+            // It is required, because at first I want to find the most similar images
+            let mut similarity_struct: HashMap<u32, Vec<(Vec<u8>, Vec<_>)>> = Default::default();
+            for (original_hash, vec_similar_hashes) in collected_similar_hashes {
+                for (similarity, similarity_hashes) in vec_similar_hashes {
+                    let entry = similarity_struct.entry(similarity).or_insert_with(Vec::new);
+                    entry.push((original_hash.clone(), similarity_hashes.clone()));
                 }
+            }
 
-                Some((
-                    hash_to_check,
-                    self.bktree
-                        .find(&hash_to_check, similarity)
-                        .filter(|(similarity, _hash)| *similarity != 0)
-                        .collect::<Vec<_>>(),
-                ))
-            })
-            .while_some()
-            .collect();
+            // Adding normal hashes with similarity > 0
+            for (similarity, vec_similarity_hashes) in similarity_struct {
+                for (original_hash, similar_hash) in vec_similarity_hashes {
+                    // Hash was used so we cannot use it in any other place
+                    if already_used_hashes.contains(&similar_hash) {
+                        continue;
+                    }
 
-        // Stop when user stopped search
-        if check_was_stopped.load(Ordering::Relaxed) {
-            return false;
-        }
+                    let mut vec_file_entry: Vec<_> = all_hashed_images.get(&original_hash).unwrap().clone();
+                    for fe in &mut vec_file_entry {
+                        fe.similarity = Similarity::Similar(similarity)
+                    }
+                    let entry = collected_similar_images.entry(original_hash.clone()).or_insert_with(Vec::new);
+                    entry.append(&mut vec_file_entry);
 
-        // Creating variables which will allow to easily iterate from smaller to bigger similarity
-        // It is required, because at first I want to find the most similar images
-        let mut similarity_struct: HashMap<u32, Vec<(Vec<u8>, Vec<_>)>> = Default::default();
-        for (original_hash, vec_similar_hashes) in collected_similar_hashes {
-            for (similarity, similarity_hashes) in vec_similar_hashes {
-                let entry = similarity_struct.entry(similarity).or_insert_with(Vec::new);
-                entry.push((original_hash.clone(), similarity_hashes.clone()));
+                    already_used_hashes.insert(similar_hash);
+                    already_used_hashes.insert(original_hash);
+                }
             }
         }
-
-        // Adding normal hashes with similarity > 0
-        for (similarity, vec_similarity_hashes) in similarity_struct {
-            for (original_hash, similar_hash) in vec_similarity_hashes {
-                // Hash was used so we cannot use it in any other place
-                if already_used_hashes.contains(&similar_hash) {
-                    continue;
-                }
-
-                let mut vec_file_entry: Vec<_> = all_hashed_images.get(&original_hash).unwrap().clone();
-                for fe in &mut vec_file_entry {
-                    fe.similarity = Similarity::Similar(similarity)
-                }
-                let entry = collected_similar_images.entry(original_hash.clone()).or_insert_with(Vec::new);
-                entry.append(&mut vec_file_entry);
-
-                already_used_hashes.insert(similar_hash);
-                already_used_hashes.insert(original_hash);
-            }
-        }
-
-        progress_thread_run.store(false, Ordering::Relaxed);
-        progress_thread_handle.join().unwrap();
 
         // Validating if group contains duplicated results
         #[cfg(debug_assertions)]
