@@ -109,7 +109,6 @@ pub struct SimilarImages {
     delete_outdated_cache: bool,
     exclude_images_with_same_size: bool,
     use_reference_folders: bool,
-    fast_comparing: bool,
     save_also_as_json: bool,
 }
 
@@ -153,7 +152,6 @@ impl SimilarImages {
             delete_outdated_cache: true,
             exclude_images_with_same_size: false,
             use_reference_folders: false,
-            fast_comparing: false,
             save_also_as_json: false,
         }
     }
@@ -183,9 +181,6 @@ impl SimilarImages {
         self.image_filter = image_filter;
     }
 
-    pub fn set_fast_comparing(&mut self, fast_comparing: bool) {
-        self.fast_comparing = fast_comparing;
-    }
     pub fn set_save_also_as_json(&mut self, save_also_as_json: bool) {
         self.save_also_as_json = save_also_as_json;
     }

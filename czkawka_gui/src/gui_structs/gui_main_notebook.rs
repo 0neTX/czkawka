@@ -94,8 +94,6 @@ pub struct GuiMainNotebook {
     pub check_button_image_ignore_same_size: CheckButton,
     pub check_button_video_ignore_same_size: CheckButton,
 
-    pub check_button_image_fast_compare: CheckButton,
-
     pub label_image_similarity: Label,
     pub label_image_similarity_max: Label,
 
@@ -223,8 +221,6 @@ impl GuiMainNotebook {
         let scale_similarity_similar_images: Scale = builder.object("scale_similarity_similar_images").unwrap();
         let scale_similarity_similar_videos: Scale = builder.object("scale_similarity_similar_videos").unwrap();
 
-        let check_button_image_fast_compare: CheckButton = builder.object("check_button_image_fast_compare").unwrap();
-
         let combo_box_image_resize_algorithm: ComboBoxText = builder.object("combo_box_image_resize_algorithm").unwrap();
         let combo_box_image_hash_algorithm: ComboBoxText = builder.object("combo_box_image_hash_algorithm").unwrap();
         let combo_box_image_hash_size: ComboBoxText = builder.object("combo_box_image_hash_size").unwrap();
@@ -319,7 +315,6 @@ impl GuiMainNotebook {
             combo_box_duplicate_hash_type,
             combo_box_image_hash_size,
             check_button_video_ignore_same_size,
-            check_button_image_fast_compare,
             check_button_duplicate_case_sensitive_name,
             evk_tree_view_bad_extensions,
             gc_tree_view_duplicate_finder,
@@ -406,10 +401,6 @@ impl GuiMainNotebook {
             .set_tooltip_text(Some(&flg!("check_button_general_same_size_tooltip")));
         self.check_button_image_ignore_same_size.set_label(Some(&flg!("check_button_general_same_size")));
         self.check_button_video_ignore_same_size.set_label(Some(&flg!("check_button_general_same_size")));
-
-        self.check_button_image_fast_compare.set_label(Some(&flg!("main_notebook_image_fast_compare")));
-        self.check_button_image_fast_compare
-            .set_tooltip_text(Some(&flg!("main_notebook_image_fast_compare_tooltip")));
 
         self.check_button_broken_files_audio.set_label(Some(&flg!("main_check_box_broken_files_audio")));
         self.check_button_broken_files_archive.set_label(Some(&flg!("main_check_box_broken_files_archive")));
