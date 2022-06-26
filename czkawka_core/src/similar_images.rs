@@ -689,26 +689,24 @@ impl SimilarImages {
         // Results
         let mut collected_similar_images: HashMap<Vec<u8>, Vec<FileEntry>> = Default::default();
 
-        let mut temp_hashes = Default::default();
-        mem::swap(&mut temp_hashes, &mut self.image_hashes);
+        let mut all_hashed_images = Default::default();
+        mem::swap(&mut all_hashed_images, &mut self.image_hashes);
 
-        let mut this_time_check_hashes; // Temporary variable which
-        let mut master_of_group: HashSet<Vec<u8>> = Default::default(); // Hashes which are "master of groups",
+        let all_hashes: Vec<_> = all_hashed_images.keys().collect();
+        let mut already_used_hashes: HashSet<_> = Default::default(); // List of already user hahes
 
-        let mut all_hashes_to_check: HashMap<Vec<u8>, Vec<FileEntry>> = temp_hashes.clone(); // List of all hashes, which are or can be master of group
-        let mut available_hashes: HashMap<Vec<u8>, Vec<FileEntry>> = Default::default(); // List of hashes which can be used as similar images
-        for (hash, vec_file_entry) in temp_hashes {
+        for (hash, vec_file_entry) in all_hashed_images.clone() {
             // There exists 2 or more images with same hash
             if vec_file_entry.len() >= 2 {
-                master_of_group.insert(hash.clone());
+                already_used_hashes.insert(hash.clone());
                 collected_similar_images.insert(hash, vec_file_entry);
             } else {
                 self.bktree.add(hash.clone());
-                available_hashes.insert(hash, vec_file_entry);
             }
         }
 
         //// PROGRESS THREAD START
+        let check_was_stopped = AtomicBool::new(false); // Used for breaking from GUI and ending check thread
         let progress_thread_run = Arc::new(AtomicBool::new(true));
 
         let atomic_mode_counter = Arc::new(AtomicUsize::new(0));
@@ -717,17 +715,14 @@ impl SimilarImages {
             let progress_send = progress_sender.clone();
             let progress_thread_run = progress_thread_run.clone();
             let atomic_mode_counter = atomic_mode_counter.clone();
-            let all_images = match self.fast_comparing {
-                false => similarity as usize * available_hashes.len(),
-                true => available_hashes.len(),
-            };
+            let all_hashes_number = all_hashes.len();
             thread::spawn(move || loop {
                 progress_send
                     .unbounded_send(ProgressData {
                         current_stage: 2,
                         max_stage: 2,
                         images_checked: atomic_mode_counter.load(Ordering::Relaxed) as usize,
-                        images_to_check: all_images,
+                        images_to_check: all_hashes_number,
                     })
                     .unwrap();
                 if !progress_thread_run.load(Ordering::Relaxed) {
@@ -739,123 +734,63 @@ impl SimilarImages {
             thread::spawn(|| {})
         };
         //// PROGRESS THREAD END
-        if similarity >= 1 {
-            if self.fast_comparing {
-                this_time_check_hashes = all_hashes_to_check.clone();
 
+        // Algorythm:
+        // Check fo TODO
+
+        // Checking for similar hashes in BKTree with multithreading
+        let collected_similar_hashes: HashMap<_, _> = all_hashes
+            .into_par_iter()
+            .map(|hash_to_check| {
+                atomic_mode_counter.fetch_add(1, Ordering::Relaxed);
                 if stop_receiver.is_some() && stop_receiver.unwrap().try_recv().is_ok() {
-                    // End thread which send info to gui
-                    progress_thread_run.store(false, Ordering::Relaxed);
-                    progress_thread_handle.join().unwrap();
-                    return false;
+                    check_was_stopped.store(true, Ordering::Relaxed);
+                    return None;
                 }
 
-                for (hash, mut vec_file_entry) in this_time_check_hashes.into_iter() {
-                    atomic_mode_counter.fetch_add(1, Ordering::Relaxed);
+                Some((
+                    hash_to_check,
+                    self.bktree
+                        .find(&hash_to_check, similarity)
+                        .filter(|(similarity, _hash)| *similarity != 0)
+                        .collect::<Vec<_>>(),
+                ))
+            })
+            .while_some()
+            .collect();
 
-                    // It is not available, because in same iteration, was already taken out
-                    if !all_hashes_to_check.contains_key(&hash) {
-                        continue;
-                    }
+        // Stop when user stopped search
+        if check_was_stopped.load(Ordering::Relaxed) {
+            return false;
+        }
 
-                    // Finds hashes with specific distance to original one
-                    let vector_with_found_similar_hashes = self
-                        .bktree
-                        .find(&hash, similarity)
-                        .filter(|(similarity, hash)| *similarity != 0 && available_hashes.contains_key(*hash))
-                        .collect::<Vec<_>>();
+        // Creating variables which will allow to easily iterate from smaller to bigger similarity
+        // It is required, because at first I want to find the most similar images
+        let mut similarity_struct: HashMap<u32, Vec<(Vec<u8>, Vec<_>)>> = Default::default();
+        for (original_hash, vec_similar_hashes) in collected_similar_hashes {
+            for (similarity, similarity_hashes) in vec_similar_hashes {
+                let entry = similarity_struct.entry(similarity).or_insert_with(Vec::new);
+                entry.push((original_hash.clone(), similarity_hashes.clone()));
+            }
+        }
 
-                    // Not found any hash with specific distance
-                    if vector_with_found_similar_hashes.is_empty() {
-                        continue;
-                    }
-
-                    // Current checked hash isn't in any group of similarity, so we create one, because found similar images
-                    if !master_of_group.contains(&hash) {
-                        master_of_group.insert(hash.clone());
-                        collected_similar_images.insert(hash.clone(), Vec::new());
-                        let _ = available_hashes.remove(&hash); // Cannot be used anymore as non master
-
-                        collected_similar_images.get_mut(&hash).unwrap().append(&mut vec_file_entry);
-
-                        // This shouldn't be executed too much times, so it should be quite fast to check this
-                        if stop_receiver.is_some() && stop_receiver.unwrap().try_recv().is_ok() {
-                            // End thread which send info to gui
-                            progress_thread_run.store(false, Ordering::Relaxed);
-                            progress_thread_handle.join().unwrap();
-                            return false;
-                        }
-                    }
-
-                    vector_with_found_similar_hashes.iter().for_each(|(similarity, other_hash)| {
-                        let _ = all_hashes_to_check.remove(*other_hash); // Cannot be used anymore as master record
-                        let mut vec_fe = available_hashes.remove(*other_hash).unwrap();
-                        for fe in &mut vec_fe {
-                            fe.similarity = Similarity::Similar(*similarity)
-                        }
-
-                        collected_similar_images.get_mut(&hash).unwrap().append(&mut vec_fe);
-                    });
+        // Adding normal hashes with similarity > 0
+        for (similarity, vec_similarity_hashes) in similarity_struct {
+            for (original_hash, similar_hash) in vec_similarity_hashes {
+                // Hash was used so we cannot use it in any other place
+                if already_used_hashes.contains(&similar_hash) {
+                    continue;
                 }
-            } else {
-                for current_similarity in 1..=similarity {
-                    this_time_check_hashes = all_hashes_to_check.clone();
 
-                    if stop_receiver.is_some() && stop_receiver.unwrap().try_recv().is_ok() {
-                        // End thread which send info to gui
-                        progress_thread_run.store(false, Ordering::Relaxed);
-                        progress_thread_handle.join().unwrap();
-                        return false;
-                    }
-
-                    for (hash, mut vec_file_entry) in this_time_check_hashes.into_iter() {
-                        atomic_mode_counter.fetch_add(1, Ordering::Relaxed);
-
-                        // It is not available, because in same iteration, was already taken out
-                        if !all_hashes_to_check.contains_key(&hash) {
-                            continue;
-                        }
-
-                        // Finds hashes with specific distance to original one
-                        let vector_with_found_similar_hashes = self
-                            .bktree
-                            .find(&hash, similarity)
-                            .filter(|(similarity, hash)| (*similarity == current_similarity) && available_hashes.contains_key(*hash))
-                            .collect::<Vec<_>>();
-
-                        // Not found any hash with specific distance
-                        if vector_with_found_similar_hashes.is_empty() {
-                            continue;
-                        }
-
-                        // Current checked hash isn't in any group of similarity, so we create one, because found similar images
-                        if !master_of_group.contains(&hash) {
-                            master_of_group.insert(hash.clone());
-                            collected_similar_images.insert(hash.clone(), Vec::new());
-                            let _ = available_hashes.remove(&hash); // Cannot be used anymore as non master
-
-                            collected_similar_images.get_mut(&hash).unwrap().append(&mut vec_file_entry);
-
-                            // This shouldn't be executed too much times, so it should be quite fast to check this
-                            if stop_receiver.is_some() && stop_receiver.unwrap().try_recv().is_ok() {
-                                // End thread which send info to gui
-                                progress_thread_run.store(false, Ordering::Relaxed);
-                                progress_thread_handle.join().unwrap();
-                                return false;
-                            }
-                        }
-
-                        vector_with_found_similar_hashes.iter().for_each(|(similarity, other_hash)| {
-                            let _ = all_hashes_to_check.remove(*other_hash); // Cannot be used anymore as master record
-                            let mut vec_fe = available_hashes.remove(*other_hash).unwrap();
-                            for fe in &mut vec_fe {
-                                fe.similarity = Similarity::Similar(*similarity)
-                            }
-
-                            collected_similar_images.get_mut(&hash).unwrap().append(&mut vec_fe);
-                        });
-                    }
+                let mut vec_file_entry: Vec<_> = all_hashed_images.get(&original_hash).unwrap().clone();
+                for fe in &mut vec_file_entry {
+                    fe.similarity = Similarity::Similar(similarity)
                 }
+                let entry = collected_similar_images.entry(original_hash.clone()).or_insert_with(Vec::new);
+                entry.append(&mut vec_file_entry);
+
+                already_used_hashes.insert(similar_hash);
+                already_used_hashes.insert(original_hash);
             }
         }
 
