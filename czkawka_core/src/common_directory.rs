@@ -13,7 +13,6 @@ pub struct Directories {
     pub excluded_directories: Vec<PathBuf>,
     pub included_directories: Vec<PathBuf>,
     pub reference_directories: Vec<PathBuf>,
-    #[cfg(target_family = "unix")]
     exclude_other_filesystems: Option<bool>,
     #[cfg(target_family = "unix")]
     included_dev_ids: Vec<u64>,
@@ -172,16 +171,17 @@ impl Directories {
 
         // Remove duplicated entries like: "/", "/"
 
-        self.excluded_directories.sort();
-        self.included_directories.sort();
-        self.reference_directories.sort();
+        self.excluded_directories.sort_unstable();
+        self.included_directories.sort_unstable();
+        self.reference_directories.sort_unstable();
 
         self.excluded_directories.dedup();
         self.included_directories.dedup();
         self.reference_directories.dedup();
 
         // Optimize for duplicated included directories - "/", "/home". "/home/Pulpit" to "/"
-        if recursive_search {
+        // Do not use when not using recursive search or using
+        if recursive_search && !self.exclude_other_filesystems.unwrap_or(false) {
             // This is only point which can't be done when recursive search is disabled.
             let mut is_inside: bool;
             for ed_checked in &self.excluded_directories {
@@ -292,8 +292,8 @@ impl Directories {
         }
 
         // Not needed, but better is to have sorted everything
-        self.excluded_directories.sort();
-        self.included_directories.sort();
+        self.excluded_directories.sort_unstable();
+        self.included_directories.sort_unstable();
         Common::print_time(start_time, SystemTime::now(), "optimize_directories".to_string());
 
         // Get device IDs for included directories

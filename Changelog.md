@@ -1,9 +1,25 @@
-## Version 5.0.0 - ?.?.2022r
-- GTK 4 port - [#466](https://github.com/qarmin/czkawka/pull/466)
+## Version 5.0.2 - 30.08.2022r
+- Fixed problem with missing some similar images when using similarity > 0  - [#799](https://github.com/qarmin/czkawka/pull/799)
+- Prebuilt Linux binaries are compiled without heif support - [24b](https://github.com/qarmin/czkawka/commit/24b64a32c65904c506b54270f0977ccbe5098cc8)
+- Similar videos stops to proceed video after certain amount of time(fixes freezes)  - [#815](https://github.com/qarmin/czkawka/pull/815)
+- Add --version argument for czkawka_cli - [#806](https://github.com/qarmin/czkawka/pull/806)
+- Rewrite a little nonsense message about minimal file size - [#807](https://github.com/qarmin/czkawka/pull/807)
+
+## Version 5.0.1 - 03.08.2022r
+- Fixed problem with removing ending slash with empty disk window path - [975](https://github.com/qarmin/czkawka/commit/97563a7b2a70fb5fcf6463f28069e6ea3b0ff5c2)
+- Added to CLI bad extensions mode - [#795](https://github.com/qarmin/czkawka/pull/795)
+- Restore default sorting method in CLI where finding biggest files - [5d7](https://github.com/qarmin/czkawka/commit/5d79dc7ccfee6d5426e37c4e6a860fa555c5927a)
+- Added tests to CI - [#791](https://github.com/qarmin/czkawka/pull/791)
+- Show error message when all directories are set as reference folders - [#795](https://github.com/qarmin/czkawka/pull/795)
+- Added more info about new requirements on Linux - [#795](https://github.com/qarmin/czkawka/pull/795)
+
+## Version 5.0.0 - 28.07.2022r
+- GUI ported to use GTK 4 - [#466](https://github.com/qarmin/czkawka/pull/466)
+- Use multithreading and improved algorithm to compare image hashes - [#762](https://github.com/qarmin/czkawka/pull/762)
 - Resize preview with window - [#466](https://github.com/qarmin/czkawka/pull/466)
 - Fix removing only one item from list view - [#466](https://github.com/qarmin/czkawka/pull/466)
 - Fix showing help command in duplicate CLI mode - [#720](https://github.com/qarmin/czkawka/pull/720)
-- Fix freeze when not choosing any tag in similar music mode - [TODO]()
+- Fix freeze when not choosing any tag in similar music mode - [#732](https://github.com/qarmin/czkawka/pull/732)
 - Fix preview of files with non-lowercase extensions - [#694](https://github.com/qarmin/czkawka/pull/694) 
 - Read more tags from music files - [#705](https://github.com/qarmin/czkawka/pull/705)
 - Improve checking for invalid extensions - [#705](https://github.com/qarmin/czkawka/pull/705), [#747](https://github.com/qarmin/czkawka/pull/747), [#749](https://github.com/qarmin/czkawka/pull/749)
@@ -12,9 +28,12 @@
 - Fix disabled ui when using invalid settings in similar music - [#740](https://github.com/qarmin/czkawka/pull/740)
 - Speedup searching for invalid extensions - [#740](https://github.com/qarmin/czkawka/pull/740)
 - Support for finding the smallest files - [#741](https://github.com/qarmin/czkawka/pull/741)
-- Improve Windows CI - [#749](https://github.com/qarmin/czkawka/pull/749)
+- Improved Windows CI - [#749](https://github.com/qarmin/czkawka/pull/749)
 - Ability to check for broken files by types - [#749](https://github.com/qarmin/czkawka/pull/749)
 - Add heif and Webp files support - [#750](https://github.com/qarmin/czkawka/pull/750)
+- Use in CLI Clap library instead StructOpt - [#759](https://github.com/qarmin/czkawka/pull/759)
+- Multiple directories can be added via Manual Add button - [#782](https://github.com/qarmin/czkawka/pull/782)
+- Option to exclude files from other filesystems in GUI(Linux) - [#776](https://github.com/qarmin/czkawka/pull/776)
 
 ## Version 4.1.0 - 24.04.2022r
 - New mode - finding files whose content not match with their extension - [#678](https://github.com/qarmin/czkawka/pull/678)

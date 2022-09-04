@@ -39,6 +39,7 @@ pub enum HashType {
 }
 
 impl HashType {
+    #[inline(always)]
     fn hasher(self: &HashType) -> Box<dyn MyHasher> {
         match self {
             HashType::Blake3 => Box::new(blake3::Hasher::new()),
@@ -271,6 +272,8 @@ impl DuplicateFinder {
     pub fn set_exclude_other_filesystems(&mut self, exclude_other_filesystems: bool) {
         self.directories.set_exclude_other_filesystems(exclude_other_filesystems);
     }
+    #[cfg(not(target_family = "unix"))]
+    pub fn set_exclude_other_filesystems(&mut self, _exclude_other_filesystems: bool) {}
 
     pub fn set_included_directory(&mut self, included_directory: Vec<PathBuf>) {
         self.directories.set_included_directory(included_directory, &mut self.text_messages);
@@ -1474,7 +1477,7 @@ mod tests {
         assert_eq!(metadata.modified()?, fs::metadata(&src)?.modified()?);
 
         let mut actual = read_dir(&dir)?.map(|e| e.unwrap().path()).collect::<Vec<PathBuf>>();
-        actual.sort();
+        actual.sort_unstable();
         assert_eq!(vec![src, dst], actual);
         Ok(())
     }

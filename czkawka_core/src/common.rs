@@ -5,12 +5,11 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+#[cfg(feature = "heif")]
+use anyhow::Result;
 use directories_next::ProjectDirs;
 use image::{DynamicImage, ImageBuffer, Rgb};
 use imagepipe::{ImageSource, Pipeline};
-
-#[cfg(feature = "heif")]
-use anyhow::Result;
 #[cfg(feature = "heif")]
 use libheif_rs::{Channel, ColorSpace, HeifContext, RgbChroma};
 
@@ -166,6 +165,10 @@ pub fn split_path(path: &Path) -> (String, String) {
         (Some(dir), None) => (dir.display().to_string(), String::new()),
         (None, _) => (String::new(), String::new()),
     }
+}
+
+pub fn create_crash_message(library_name: &str, file_path: &str, home_library_url: &str) -> String {
+    format!("{library_name} library crashed when opening \"{file_path}\", please check if this is fixed with the latest version of {library_name} (e.g. with https://github.com/qarmin/crates_tester) and if it is not fixed, please report bug here - {home_library_url}")
 }
 
 impl Common {

@@ -50,10 +50,12 @@ pub struct FileEntry {
 struct Hamming;
 
 impl bk_tree::Metric<Vec<u8>> for Hamming {
+    #[inline(always)]
     fn distance(&self, a: &Vec<u8>, b: &Vec<u8>) -> u32 {
         hamming::distance_fast(a, b).unwrap() as u32
     }
 
+    #[inline(always)]
     fn threshold_distance(&self, a: &Vec<u8>, b: &Vec<u8>, _threshold: u32) -> Option<u32> {
         Some(self.distance(a, b))
     }
@@ -170,6 +172,8 @@ impl SimilarVideos {
     pub fn set_exclude_other_filesystems(&mut self, exclude_other_filesystems: bool) {
         self.directories.set_exclude_other_filesystems(exclude_other_filesystems);
     }
+    #[cfg(not(target_family = "unix"))]
+    pub fn set_exclude_other_filesystems(&mut self, _exclude_other_filesystems: bool) {}
 
     pub fn set_minimal_file_size(&mut self, minimal_file_size: u64) {
         self.minimal_file_size = match minimal_file_size {
@@ -203,7 +207,9 @@ impl SimilarVideos {
     pub fn find_similar_videos(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&futures::channel::mpsc::UnboundedSender<ProgressData>>) {
         if !check_if_ffmpeg_is_installed() {
             self.text_messages.errors.push(flc!("core_ffmpeg_not_found"));
+            #[cfg(target_os = "windows")]
             self.text_messages.errors.push(flc!("core_ffmpeg_not_found_windows"));
+            #[cfg(target_os = "linux")]
             self.text_messages.errors.push(flc!(
                 "core_ffmpeg_missing_in_snap",
                 generate_translation_hashmap(vec![("url", "https://github.com/snapcrafters/ffmpeg/issues/73".to_string())])

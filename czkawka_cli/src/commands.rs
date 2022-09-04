@@ -6,9 +6,10 @@ use czkawka_core::common_dir_traversal::CheckingMethod;
 use czkawka_core::duplicate::{DeleteMethod, HashType};
 use czkawka_core::same_music::MusicSimilarity;
 use czkawka_core::similar_images::SimilarityPreset;
+use czkawka_core::CZKAWKA_VERSION;
 
 #[derive(Debug, clap::StructOpt)]
-#[clap(name = "czkawka", help_message = HELP_MESSAGE, template = HELP_TEMPLATE)]
+#[clap(name = "czkawka", help_message = HELP_MESSAGE, template = HELP_TEMPLATE, version = CZKAWKA_VERSION)]
 pub enum Commands {
     #[clap(name = "dup", about = "Finds duplicate files", help_message = HELP_MESSAGE, after_help = "EXAMPLE:\n    czkawka dup -d /home/rafal -e /home/rafal/Obrazy  -m 25 -x 7z rar IMAGE -s hash -f results.txt -D aeo")]
     Duplicates {
@@ -22,7 +23,7 @@ pub enum Commands {
         minimal_file_size: u64,
         #[clap(short = 'i', long, parse(try_from_str = parse_maximal_file_size), default_value = "18446744073709551615", help = "Maximum size in bytes", long_help = "Maximum size of checked files in bytes, assigning lower value may speed up searching")]
         maximal_file_size: u64,
-        #[clap(short = 'c', long, parse(try_from_str = parse_minimal_file_size), default_value = "257144", help = "Minimum cached file size in bytes", long_help = "Minimum size of cached files in bytes, assigning bigger value may speed up will cause that lower amount of files will be cached, but loading of cache will be faster")]
+        #[clap(short = 'c', long, parse(try_from_str = parse_minimal_file_size), default_value = "257144", help = "Minimum cached file size in bytes", long_help = "Minimum size of cached files in bytes, assigning bigger value may speed up the scan but loading the cache will be slower, assigning smaller value may slow down the scan and some files may need to be hashed again but loading the cache will be faster")]
         minimal_cached_file_size: u64,
         #[clap(flatten)]
         allowed_extensions: AllowedExtensions,
@@ -36,6 +37,8 @@ pub enum Commands {
         file_to_save: FileToSave,
         #[clap(flatten)]
         not_recursive: NotRecursive,
+        #[clap(flatten)]
+        case_sensitive_name_comparison: CaseSensitiveNameComparison,
         #[cfg(target_family = "unix")]
         #[clap(flatten)]
         exclude_other_filesystems: ExcludeOtherFilesystems,
@@ -60,7 +63,7 @@ pub enum Commands {
         #[clap(flatten)]
         exclude_other_filesystems: ExcludeOtherFilesystems,
     },
-    #[clap(name = "big", about = "Finds big files", help_message = HELP_MESSAGE, after_help = "EXAMPLE:\n    czkawka big -d /home/rafal/ /home/piszczal -e /home/rafal/Roman -n 25 -x VIDEO -f results.txt")]
+    #[clap(name = "big", about = "Finds big files", help_message = HELP_MESSAGE, after_help = "EXAMPLE:\n    czkawka big -d /home/rafal/ /home/piszczal -e /home/rafal/Roman -n 25 -J -x VIDEO -f results.txt")]
     BiggestFiles {
         #[clap(flatten)]
         directories: Directories,
@@ -78,6 +81,8 @@ pub enum Commands {
         file_to_save: FileToSave,
         #[clap(flatten)]
         not_recursive: NotRecursive,
+        #[clap(short = 'J', long, help = "Finds the smallest files instead the biggest")]
+        smallest_mode: bool,
         #[cfg(target_family = "unix")]
         #[clap(flatten)]
         exclude_other_filesystems: ExcludeOtherFilesystems,
@@ -130,7 +135,7 @@ pub enum Commands {
         minimal_file_size: u64,
         #[clap(short = 'i', long, parse(try_from_str = parse_maximal_file_size), default_value = "18446744073709551615", help = "Maximum size in bytes", long_help = "Maximum size of checked files in bytes, assigning lower value may speed up searching")]
         maximal_file_size: u64,
-        #[clap(short, long, default_value = "High", parse(try_from_str = parse_similar_images_similarity), help = "Similairty level (Minimal, VerySmall, Small, Medium, High, VeryHigh)", long_help = "Methods to choose similarity level of images which will be considered as duplicated.")]
+        #[clap(short, long, default_value = "High", parse(try_from_str = parse_similar_images_similarity), help = "Similairty level (Minimal, VerySmall, Small, Medium, High, VeryHigh, Original)", long_help = "Methods to choose similarity level of images which will be considered as duplicated.")]
         similarity_preset: SimilarityPreset,
         #[clap(flatten)]
         excluded_items: ExcludedItems,
@@ -143,9 +148,9 @@ pub enum Commands {
         exclude_other_filesystems: ExcludeOtherFilesystems,
         #[clap(short = 'g', long, default_value = "Gradient", parse(try_from_str = parse_similar_hash_algorithm), help = "Hash algorithm (allowed: Mean, Gradient, Blockhash, VertGradient, DoubleGradient)")]
         hash_alg: HashAlg,
-        #[clap(short = 'z', long, default_value = "Lanczos3", parse(try_from_str = parse_similar_image_filter), help = "Hash algorithm (allowed: Lanczos3, Nearest, Triangle, Faussian, Catmullrom)")]
+        #[clap(short = 'z', long, default_value = "Nearest", parse(try_from_str = parse_similar_image_filter), help = "Hash algorithm (allowed: Lanczos3, Nearest, Triangle, Faussian, Catmullrom)")]
         image_filter: FilterType,
-        #[clap(short = 'c', long, default_value = "8", parse(try_from_str = parse_image_hash_size), help = "Hash size (allowed: 4, 8, 16)")]
+        #[clap(short = 'c', long, default_value = "16", parse(try_from_str = parse_image_hash_size), help = "Hash size (allowed: 8, 16, 32, 64)")]
         hash_size: u8,
     },
     #[clap(name = "music", about = "Finds same music by tags", help_message = HELP_MESSAGE, after_help = "EXAMPLE:\n    czkawka music -d /home/rafal -f results.txt")]
@@ -238,11 +243,26 @@ pub enum Commands {
         #[clap(short = 't', long, parse(try_from_str = parse_tolerance), default_value = "10", help = "Video maximium difference (allowed values <0,20>)", long_help = "Maximum difference between video frames, bigger value means that videos can looks more and more different (allowed values <0,20>)")]
         tolerance: i32,
     },
-    #[clap(name = "tester", about = "Contains various test", help_message = HELP_MESSAGE, after_help = "EXAMPLE:\n    czkawka tests -i")]
-    Tester {
-        #[clap(short = 'i', long = "test_image", help = "Test speed of hashing provided test.jpg image with different filters and methods.")]
-        test_image: bool,
+    #[clap(name = "ext", about = "Finds files with invalid extensions", help_message = HELP_MESSAGE, after_help = "EXAMPLE:\n    czkawka broken -d /home/czokolada/ -f results.txt")]
+    BadExtensions {
+        #[clap(flatten)]
+        directories: Directories,
+        #[clap(flatten)]
+        excluded_directories: ExcludedDirectories,
+        #[clap(flatten)]
+        excluded_items: ExcludedItems,
+        #[clap(flatten)]
+        allowed_extensions: AllowedExtensions,
+        #[clap(flatten)]
+        file_to_save: FileToSave,
+        #[clap(flatten)]
+        not_recursive: NotRecursive,
+        #[cfg(target_family = "unix")]
+        #[clap(flatten)]
+        exclude_other_filesystems: ExcludeOtherFilesystems,
     },
+    #[clap(name = "tester", about = "Small utility to test supported speed of ", help_message = HELP_MESSAGE, after_help = "EXAMPLE:\n    czkawka tester")]
+    Tester {},
 }
 
 #[derive(Debug, clap::StructOpt)]
@@ -315,6 +335,12 @@ pub struct FileToSave {
 pub struct AllowHardLinks {
     #[clap(short = 'L', long, help = "Do not ignore hard links")]
     pub allow_hard_links: bool,
+}
+
+#[derive(Debug, clap::StructOpt)]
+pub struct CaseSensitiveNameComparison {
+    #[clap(short = 'l', long, help = "Use case sensitive name comparison")]
+    pub case_sensitive_name_comparison: bool,
 }
 
 #[derive(Debug, clap::StructOpt)]

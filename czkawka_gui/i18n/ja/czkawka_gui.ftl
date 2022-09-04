@@ -43,22 +43,31 @@ duplicate_check_method_tooltip =
     
     ハッシュ - 同じ内容のファイルを探します。ファイルをハッシュ化して比較することにより重複を見つけます。このモードは、重複を見つけるための最も安全な方法です。このツールはキャッシュを多用するので、同じデータの2回目以降のスキャンは最初の時よりずっと速くなるはずです。
 image_hash_size_tooltip =
-    Czkawkaは各画像に対して生成されたハッシュのサイズの変更を提供します。 ハッシュが大きいほど画像間の差異の少ない画像を見つけることができますが、動作が少し遅くなります。
+    チェックした画像はそれぞれ特別なハッシュを生成し、そのハッシュを比較することで、両者の差が小さいほど、この画像は類似していることを意味します。
     
-    ハッシュ値のデフォルトの大きさは8バイトで、非常に類似した異なる画像を見つけることができます。 16バイトと32バイトのハッシュは、ほぼ同じ画像にのみ使用する必要があります。 本当に小さな違いを見つける必要がある状況を除いて、64 バイトのハッシュは使用するべきではありません。
-image_resize_filter_tooltip = 画像のハッシュを計算するには、ライブラリはまず画像のサイズを変更する必要があります。選択されたアルゴリズムによって、結果の画像はほとんど異なります。 最速のアルゴリズムであり、かつ最も悪い結果をもたらすアルゴリズムはNearestです。
-image_hash_alg_tooltip = ユーザーは多くのハッシュ方式から1つを選択することができます。 それぞれが長所と短所の両方を持っており、時には異なる画像に対してより良い結果や悪い結果を与えます。 あなたにとって最良のものを選ぶには、それらを自分自身で試す必要があります。
+    8のハッシュサイズは、オリジナルに少ししか似ていない画像を見つけるのにかなり適しています。しかし、1000枚を超えるような大きな画像では、誤検出が多くなるため、より大きなハッシュサイズを使用することをお勧めします。
+    
+    16はデフォルトのハッシュサイズであり、少しでも類似した画像を見つけることとハッシュの衝突を少なくすることの間でかなり良い妥協点です。
+    
+    32と64のハッシュは非常に類似した画像しか見つけられませんが、誤検出はほとんどありません（アルファチャンネルのある一部の画像を除いて）。
+image_resize_filter_tooltip =
+    画像のハッシュを計算するために、ライブラリはまず画像のサイズを変更する必要があります。
+    
+    選択されたアルゴリズムによって、ハッシュを計算するために使用される画像は少し違って見えるかもしれません。
+    
+    最も高速なアルゴリズムは Nearest ですが、最も悪い結果を出すのも Nearest です。
+    
+    8x8のハッシュサイズでは、より良い画像群を得るために、Nearestとは異なるアルゴリズムを使用することが推奨されます。
+image_hash_alg_tooltip =
+    ハッシュの計算方法は、多くのアルゴリズムの中からユーザーが選択することができます。
+    
+    それぞれ長所と短所があり、画像によって良い結果が出る場合もあれば、悪い結果が出る場合もあります。
+    
+    そのため、最適なものを見極めるには、手動でのテストが必要です。
 big_files_mode_combobox_tooltip = 最小/最大のファイルを検索できます
 big_files_mode_label = チェックされたファイル
 big_files_mode_smallest_combo_box = 最も小さい
 big_files_mode_biggest_combo_box = 最大のもの
-main_notebook_image_fast_compare = 高速な比較
-main_notebook_image_fast_compare_tooltip =
-    ハッシュの検索・比較を高速化します。
-    
-    通常モードでは、各ハッシュをx回比較します（xはユーザが選択した類似度）。
-    
-    このオプションは、類似度が0(非常に高い) ではない1,000枚以上の画像を比較する場合に推奨されます。
 main_notebook_duplicates = 重複したファイル
 main_notebook_empty_directories = 空のディレクトリ
 main_notebook_big_files = 大きなファイル
@@ -98,6 +107,10 @@ main_label_max_size = 最大値
 main_label_shown_files = 表示するファイルの数
 main_label_resize_algorithm = アルゴリズムのサイズを変更
 main_label_similarity = 類似度{"   "}
+main_check_box_broken_files_audio = 音声
+main_check_box_broken_files_pdf = Pdf
+main_check_box_broken_files_archive = アーカイブする
+main_check_box_broken_files_image = Image
 check_button_general_same_size = 同じサイズを無視
 check_button_general_same_size_tooltip = 同一のサイズのファイルがあった場合、結果から無視する - 通常これは1:1重複です
 main_label_size_bytes_tooltip = スキャンで使用されるファイルのサイズ
@@ -112,10 +125,20 @@ upper_remove_included_button = 削除
 upper_manual_add_excluded_button = 手動追加
 upper_add_excluded_button = 追加
 upper_remove_excluded_button = 削除
-upper_manual_add_included_button_tooltip = 検索するディレクトリ名を手動で追加します。
+upper_manual_add_included_button_tooltip =
+    手動で検索するディレクトリ名を追加します。
+    
+    一度に複数のパスを追加するには、 ;
+    
+    /home/roman;/home/rozkazは/home/romanと/home/rozkazの2つのディレクトリを追加します。
 upper_add_included_button_tooltip = 検索に新しいディレクトリを追加します。
 upper_remove_included_button_tooltip = 検索からディレクトリを削除します。
-upper_manual_add_excluded_button_tooltip = 除外するディレクトリ名を手動で追加します。
+upper_manual_add_excluded_button_tooltip =
+    除外されたディレクトリ名を手動で追加します。
+    
+    一度に複数のパスを追加するには、 ;
+    
+    /home/roman;/home/krokiet は /home/roman と /home/keokiet の 2 つのディレクトリを追加します。
 upper_add_excluded_button_tooltip = 検索で除外するディレクトリを追加します。
 upper_remove_excluded_button_tooltip = 除外されたディレクトリを削除します。
 upper_notebook_items_configuration = アイテム設定
@@ -229,6 +252,11 @@ header_about_button_tooltip = アプリに関する情報を含むダイアロ�
 
 ## General
 
+settings_ignore_other_filesystems = 他のファイルシステムを無視(Linuxのみ)
+settings_ignore_other_filesystems_tooltip =
+    検索されたディレクトリと同じファイルシステムにないファイルを無視します。
+    
+    Linux の find コマンドで -xdev オプションのように動作します。
 settings_save_at_exit_button_tooltip = 終了時に設定をファイルに保存します。
 settings_load_at_start_button_tooltip =
     起動時にファイルから設定を読み込みます。
@@ -374,6 +402,7 @@ saving_loading_not_valid = 設定 "{ $data }" は現在のバージョンのア�
 invalid_symlink_infinite_recursion = 無限再帰性
 invalid_symlink_non_existent_destination = 保存先ファイルが存在しません
 # Other
+selected_all_reference_folders = すべてのディレクトリが参照フォルダとして設定されている場合、検索を開始できません
 searching_for_data = データを検索中、しばらくお待ちください...
 text_view_messages = メッセージ
 text_view_warnings = 警告
@@ -404,6 +433,7 @@ move_files_choose_more_than_1_path = 重複したファイルをコピーする�
 move_stats = { $num_files }/{ $all_files } アイテムを適切に移動しました
 save_results_to_file = ファイル { $name } に結果を保存しました
 search_not_choosing_any_music = エラー: 音楽検索タイプのチェックボックスを少なくとも1つ選択する必要があります。
+search_not_choosing_any_broken_files = エラー: チェックされた壊れたファイルの種類のチェックボックスを少なくとも1つ選択する必要があります。
 include_folders_dialog_title = 含めるフォルダ
 exclude_folders_dialog_title = 除外するフォルダ
 include_manually_directories_dialog_title = ディレクトリを手動で追加

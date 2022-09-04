@@ -45,6 +45,7 @@ pub fn connect_button_search(
     futures_sender_broken_files: futures::channel::mpsc::UnboundedSender<broken_files::ProgressData>,
     futures_sender_bad_extensions: futures::channel::mpsc::UnboundedSender<common_dir_traversal::ProgressData>,
 ) {
+    let check_button_settings_one_filesystem = gui_data.settings.check_button_settings_one_filesystem.clone();
     let combo_box_image_hash_size = gui_data.main_notebook.combo_box_image_hash_size.clone();
     let combo_box_image_hash_algorithm = gui_data.main_notebook.combo_box_image_hash_algorithm.clone();
     let combo_box_image_resize_algorithm = gui_data.main_notebook.combo_box_image_resize_algorithm.clone();
@@ -113,10 +114,16 @@ pub fn connect_button_search(
     let button_settings = gui_data.header.button_settings.clone();
     let button_app_info = gui_data.header.button_app_info.clone();
     let check_button_music_approximate_comparison = gui_data.main_notebook.check_button_music_approximate_comparison.clone();
-    let check_button_image_fast_compare = gui_data.main_notebook.check_button_image_fast_compare.clone();
     let check_button_settings_save_also_json = gui_data.settings.check_button_settings_save_also_json.clone();
 
     buttons_search_clone.connect_clicked(move |_| {
+        // Check if user selected all referenced folders
+        let list_store_included_directories = get_list_store(&tree_view_included_directories);
+        if check_if_list_store_column_have_all_same_values(&list_store_included_directories, ColumnsIncludedDirectory::ReferenceButton as i32, true) {
+            entry_info.set_text(&flg!("selected_all_reference_folders"));
+            return;
+        }
+
         let included_directories = get_path_buf_from_vector_of_strings(get_string_from_list_store(&tree_view_included_directories, ColumnsIncludedDirectory::Path as i32, None));
         let excluded_directories = get_path_buf_from_vector_of_strings(get_string_from_list_store(&tree_view_excluded_directories, ColumnsExcludedDirectory::Path as i32, None));
         let reference_directories = get_path_buf_from_vector_of_strings(get_string_from_list_store(
@@ -148,6 +155,7 @@ pub fn connect_button_search(
             .unwrap_or_else(|_| DEFAULT_MAXIMAL_FILE_SIZE.parse::<u64>().unwrap());
 
         let show_dialog = Arc::new(AtomicBool::new(true));
+        let ignore_other_filesystems = check_button_settings_one_filesystem.is_active();
 
         window_progress.set_title(Some(&flg!("window_progress_title")));
 
@@ -215,6 +223,7 @@ pub fn connect_button_search(
                     df.set_use_prehash_cache(use_prehash_cache);
                     df.set_delete_outdated_cache(delete_outdated_cache);
                     df.set_case_sensitive_name_comparison(case_sensitive_name_comparison);
+                    df.set_exclude_other_filesystems(ignore_other_filesystems);
                     df.find_duplicates(Some(&stop_receiver), Some(&futures_sender_duplicate_files));
                     let _ = glib_stop_sender.send(Message::Duplicates(df));
                 });
@@ -236,6 +245,7 @@ pub fn connect_button_search(
                     vf.set_recursive_search(recursive_search);
                     vf.set_excluded_items(excluded_items);
                     vf.set_allowed_extensions(allowed_extensions);
+                    vf.set_exclude_other_filesystems(ignore_other_filesystems);
                     vf.find_empty_files(Some(&stop_receiver), Some(&futures_sender_empty_files));
                     let _ = glib_stop_sender.send(Message::EmptyFiles(vf));
                 });
@@ -254,6 +264,7 @@ pub fn connect_button_search(
                     ef.set_included_directory(included_directories);
                     ef.set_excluded_directory(excluded_directories);
                     ef.set_excluded_items(excluded_items);
+                    ef.set_exclude_other_filesystems(ignore_other_filesystems);
                     ef.find_empty_folders(Some(&stop_receiver), Some(&futures_sender_empty_folder));
                     let _ = glib_stop_sender.send(Message::EmptyFolders(ef));
                 });
@@ -282,6 +293,7 @@ pub fn connect_button_search(
                     bf.set_allowed_extensions(allowed_extensions);
                     bf.set_number_of_files_to_check(numbers_of_files_to_check);
                     bf.set_search_mode(big_files_mode);
+                    bf.set_exclude_other_filesystems(ignore_other_filesystems);
                     bf.find_big_files(Some(&stop_receiver), Some(&futures_sender_big_file));
                     let _ = glib_stop_sender.send(Message::BigFiles(bf));
                 });
@@ -302,6 +314,7 @@ pub fn connect_button_search(
                     tf.set_excluded_directory(excluded_directories);
                     tf.set_recursive_search(recursive_search);
                     tf.set_excluded_items(excluded_items);
+                    tf.set_exclude_other_filesystems(ignore_other_filesystems);
                     tf.find_temporary_files(Some(&stop_receiver), Some(&futures_sender_temporary));
                     let _ = glib_stop_sender.send(Message::Temporary(tf));
                 });
@@ -326,11 +339,9 @@ pub fn connect_button_search(
 
                 let ignore_same_size = check_button_image_ignore_same_size.is_active();
 
-                let similarity = similar_images::Similarity::Similar(scale_similarity_similar_images.value() as u32);
+                let similarity = scale_similarity_similar_images.value() as u32;
 
                 let delete_outdated_cache = check_button_settings_similar_images_delete_outdated_cache.is_active();
-
-                let fast_compare = check_button_image_fast_compare.is_active();
 
                 let futures_sender_similar_images = futures_sender_similar_images.clone();
                 // Find similar images
@@ -352,8 +363,8 @@ pub fn connect_button_search(
                     sf.set_allowed_extensions(allowed_extensions);
                     sf.set_delete_outdated_cache(delete_outdated_cache);
                     sf.set_exclude_images_with_same_size(ignore_same_size);
-                    sf.set_fast_comparing(fast_compare);
                     sf.set_save_also_as_json(save_also_as_json);
+                    sf.set_exclude_other_filesystems(ignore_other_filesystems);
                     sf.find_similar_images(Some(&stop_receiver), Some(&futures_sender_similar_images));
                     let _ = glib_stop_sender.send(Message::SimilarImages(sf));
                 });
@@ -389,6 +400,7 @@ pub fn connect_button_search(
                     sf.set_delete_outdated_cache(delete_outdated_cache);
                     sf.set_exclude_videos_with_same_size(ignore_same_size);
                     sf.set_save_also_as_json(save_also_as_json);
+                    sf.set_exclude_other_filesystems(ignore_other_filesystems);
                     sf.find_similar_videos(Some(&stop_receiver), Some(&futures_sender_similar_videos));
                     let _ = glib_stop_sender.send(Message::SimilarVideos(sf));
                 });
@@ -440,6 +452,7 @@ pub fn connect_button_search(
                         mf.set_music_similarity(music_similarity);
                         mf.set_approximate_comparison(approximate_comparison);
                         mf.set_save_also_as_json(save_also_as_json);
+                        mf.set_exclude_other_filesystems(ignore_other_filesystems);
                         mf.find_same_music(Some(&stop_receiver), Some(&futures_sender_same_music));
                         let _ = glib_stop_sender.send(Message::SameMusic(mf));
                     });
@@ -475,6 +488,7 @@ pub fn connect_button_search(
                     isf.set_recursive_search(recursive_search);
                     isf.set_excluded_items(excluded_items);
                     isf.set_allowed_extensions(allowed_extensions);
+                    isf.set_exclude_other_filesystems(ignore_other_filesystems);
                     isf.find_invalid_links(Some(&stop_receiver), Some(&futures_sender_invalid_symlinks));
                     let _ = glib_stop_sender.send(Message::InvalidSymlinks(isf));
                 });
@@ -515,6 +529,7 @@ pub fn connect_button_search(
                         br.set_allowed_extensions(allowed_extensions);
                         br.set_save_also_as_json(save_also_as_json);
                         br.set_checked_types(checked_types);
+                        br.set_exclude_other_filesystems(ignore_other_filesystems);
                         br.find_broken_files(Some(&stop_receiver), Some(&futures_sender_broken_files));
                         let _ = glib_stop_sender.send(Message::BrokenFiles(br));
                     });
@@ -552,6 +567,7 @@ pub fn connect_button_search(
                     be.set_maximal_file_size(maximal_file_size);
                     be.set_allowed_extensions(allowed_extensions);
                     be.set_recursive_search(recursive_search);
+                    be.set_exclude_other_filesystems(ignore_other_filesystems);
                     be.find_bad_extensions_files(Some(&stop_receiver), Some(&futures_sender_bad_extensions));
                     let _ = glib_stop_sender.send(Message::BadExtensions(be));
                 });

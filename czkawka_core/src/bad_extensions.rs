@@ -238,6 +238,12 @@ impl BadExtensions {
             t => t,
         };
     }
+    #[cfg(target_family = "unix")]
+    pub fn set_exclude_other_filesystems(&mut self, exclude_other_filesystems: bool) {
+        self.directories.set_exclude_other_filesystems(exclude_other_filesystems);
+    }
+    #[cfg(not(target_family = "unix"))]
+    pub fn set_exclude_other_filesystems(&mut self, _exclude_other_filesystems: bool) {}
 
     pub const fn get_text_messages(&self) -> &Messages {
         &self.text_messages
@@ -463,7 +469,7 @@ impl BadExtensions {
 
         self.information.number_of_files_with_bad_extension = self.bad_extensions_files.len();
 
-        Common::print_time(system_time, SystemTime::now(), "sort_images - reading data from files in parallel".to_string());
+        Common::print_time(system_time, SystemTime::now(), "bad extension finding".to_string());
 
         // Clean unused data
         self.files_to_check = Default::default();
@@ -533,7 +539,7 @@ impl SaveResults for BadExtensions {
         if !self.bad_extensions_files.is_empty() {
             writeln!(writer, "Found {} files with invalid extension.", self.information.number_of_files_with_bad_extension).unwrap();
             for file_entry in self.bad_extensions_files.iter() {
-                writeln!(writer, "{}", file_entry.path.display()).unwrap();
+                writeln!(writer, "{} ----- {}", file_entry.path.display(), file_entry.proper_extensions).unwrap();
             }
         } else {
             write!(writer, "Not found any files with invalid extension.").unwrap();
@@ -550,7 +556,7 @@ impl PrintResults for BadExtensions {
         let start_time: SystemTime = SystemTime::now();
         println!("Found {} files with invalid extension.\n", self.information.number_of_files_with_bad_extension);
         for file_entry in self.bad_extensions_files.iter() {
-            println!("{}", file_entry.path.display());
+            println!("{} ----- {}", file_entry.path.display(), file_entry.proper_extensions);
         }
 
         Common::print_time(start_time, SystemTime::now(), "print_entries".to_string());

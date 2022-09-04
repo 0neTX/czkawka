@@ -14,7 +14,7 @@ use lofty::{read_from, AudioFile, ItemKey};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::common::AUDIO_FILES_EXTENSIONS;
+use crate::common::{create_crash_message, AUDIO_FILES_EXTENSIONS};
 use crate::common::{open_cache_folder, Common, LOOP_DURATION};
 use crate::common_dir_traversal::{CheckingMethod, DirTraversalBuilder, DirTraversalResult, FileEntry, ProgressData};
 use crate::common_directory::Directories;
@@ -199,6 +199,8 @@ impl SameMusic {
     pub fn set_exclude_other_filesystems(&mut self, exclude_other_filesystems: bool) {
         self.directories.set_exclude_other_filesystems(exclude_other_filesystems);
     }
+    #[cfg(not(target_family = "unix"))]
+    pub fn set_exclude_other_filesystems(&mut self, _exclude_other_filesystems: bool) {}
 
     /// Set included dir which needs to be relative, exists etc.
     pub fn set_included_directory(&mut self, included_directory: Vec<PathBuf>) {
@@ -391,7 +393,8 @@ impl SameMusic {
                         }
                     },
                     Err(_) => {
-                        println!("File {} crashed during reading tags, please report bug", path);
+                        let message = create_crash_message("Lofty", &path, "https://github.com/image-rs/image/issues");
+                        println!("{message}");
                         return Some(None);
                     }
                 };
@@ -547,7 +550,7 @@ impl SameMusic {
                 }
                 let mut hash_map: BTreeMap<String, Vec<MusicEntry>> = Default::default();
                 for file_entry in vec_file_entry {
-                    let mut thing = file_entry.track_title.to_lowercase().trim().to_string();
+                    let mut thing = file_entry.track_title.trim().to_lowercase();
                     if self.approximate_comparison {
                         get_approximate_conversion(&mut thing);
                     }
@@ -575,7 +578,7 @@ impl SameMusic {
                 }
                 let mut hash_map: BTreeMap<String, Vec<MusicEntry>> = Default::default();
                 for file_entry in vec_file_entry {
-                    let mut thing = file_entry.track_artist.to_lowercase().trim().to_string();
+                    let mut thing = file_entry.track_artist.trim().to_lowercase();
                     if self.approximate_comparison {
                         get_approximate_conversion(&mut thing);
                     }
@@ -603,7 +606,7 @@ impl SameMusic {
                 }
                 let mut hash_map: BTreeMap<String, Vec<MusicEntry>> = Default::default();
                 for file_entry in vec_file_entry {
-                    let thing = file_entry.year.to_lowercase().trim().to_string();
+                    let thing = file_entry.year.trim().to_lowercase();
                     if !thing.is_empty() {
                         hash_map.entry(thing.clone()).or_insert_with(Vec::new).push(file_entry);
                     }
@@ -628,7 +631,7 @@ impl SameMusic {
                 }
                 let mut hash_map: BTreeMap<String, Vec<MusicEntry>> = Default::default();
                 for file_entry in vec_file_entry {
-                    let thing = file_entry.length.to_lowercase().trim().to_string();
+                    let thing = file_entry.length.trim().to_lowercase();
                     if !thing.is_empty() {
                         hash_map.entry(thing.clone()).or_insert_with(Vec::new).push(file_entry);
                     }
@@ -653,7 +656,7 @@ impl SameMusic {
                 }
                 let mut hash_map: BTreeMap<String, Vec<MusicEntry>> = Default::default();
                 for file_entry in vec_file_entry {
-                    let thing = file_entry.genre.to_lowercase().trim().to_string();
+                    let thing = file_entry.genre.trim().to_lowercase();
                     if !thing.is_empty() {
                         hash_map.entry(thing.clone()).or_insert_with(Vec::new).push(file_entry);
                     }
