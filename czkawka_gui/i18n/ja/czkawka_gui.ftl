@@ -14,6 +14,22 @@ music_bitrate_checkbox = ビットレート
 music_genre_checkbox = ジャンル
 music_length_checkbox = 長さ
 music_comparison_checkbox = おおよその比較
+music_checking_by_tags = タグ
+music_checking_by_content = コンテンツ
+same_music_seconds_label = フラグメント最小秒の持続時間
+same_music_similarity_label = 最大差
+same_music_tooltip =
+    Searching for similar music files by its content can be configured by setting:
+    
+    - The minimum fragment time after which music files can be identified as similar
+    - The maximum difference difference between two tested fragments
+    
+    The key to good results is to find sensible combinations of these parameters, for provided.
+    
+    Setting the minimum time to 5s and the maximum difference to 1.0, will look for almost identical fragments in the files.
+    A time of 20s and a maximum difference of 6.0, on the other hand, works well for finding remixes/live versions etc.
+    
+    By default, each music file is compared to each other and this can take a lot of time when testing many files, so it is usually better to use reference folders and specifying which files are to be compared with each other(with same amount of files, comparing fingerprints will be faster at least 4x than without reference folders).
 music_comparison_checkbox_tooltip =
     機械学習によりフレーズから括弧とその中身を除外するAIを使用して、類似の音楽ファイルを検索します。このオプションが有効な場合、例えば以下のファイルは重複とみなされます:
     
@@ -23,6 +39,7 @@ duplicate_case_sensitive_name_tooltip =
     有効な場合、グループのみレコードまったく同じ名前を持っている場合など。 Z<unk> ołd <-> Z<unk> ołd
     
     このようなオプションを無効にすると、各文字のサイズが同じかどうかを確認せずに名前をグループ化します。例: z<unk> o<unk> D <-> Z<unk> ołd
+duplicate_mode_size_name_combo_box = サイズと名前
 duplicate_mode_name_combo_box = 名前
 duplicate_mode_size_combo_box = サイズ
 duplicate_mode_hash_combo_box = ハッシュ
@@ -203,6 +220,11 @@ popover_custom_case_sensitive_check_button = 大文字と小文字を区別
 popover_custom_all_in_group_label = グループ内のすべてのレコードを選択しない
 popover_custom_mode_unselect = カスタム選択を解除
 popover_custom_mode_select = カスタム選択
+popover_sort_file_name = ファイル名
+popover_sort_folder_name = フォルダー名
+popover_sort_full_name = カード名義人
+popover_sort_size = サイズ
+popover_sort_selection = 選択
 popover_invalid_regex = 正規表現が無効です
 popover_valid_regex = 正規表現が有効です
 # Bottom buttons
@@ -213,6 +235,7 @@ bottom_save_button = 保存
 bottom_symlink_button = シンボリックリンク
 bottom_hardlink_button = ハードリンク
 bottom_move_button = 移動
+bottom_sort_button = 並び替え
 bottom_search_button_tooltip = 検索を開始
 bottom_select_button_tooltip = レコードを選択します。選択したファイル/フォルダのみが後で処理できます。
 bottom_delete_button_tooltip = 選択したファイル/フォルダを削除します。
@@ -225,10 +248,16 @@ bottom_hardlink_button_tooltip =
     ハードリンクを作成します。
     グループ内の2つ以上の結果が選択されている場合にのみ機能します。
     最初の結果は変更されず、2番目以降の結果が最初の結果にハードリンクされます。
+bottom_hardlink_button_not_available_tooltip =
+    Create hardlinks.
+    Button is disabled, because hardlinks cannot be created.
+    Hardlinks only works with administrator privileges on Windows, so be sure to run app as administrator.
+    If app already works with such privileges check for similar issues on Github.
 bottom_move_button_tooltip =
     選択したフォルダにファイルを移動します。
     ディレクトリツリーを維持したまま、すべてのファイルをフォルダにコピーします。
     同じ名前の2つのファイルをフォルダに移動しようとすると、2番目のファイルが失敗し、エラーが表示されます。
+bottom_sort_button_tooltip = 選択した方法に従ってファイル/フォルダを並べ替えます。
 bottom_show_errors_tooltip = 下部のエラーパネルを表示/非表示にします。
 bottom_show_upper_notebook_tooltip = 上部のノートブックパネルを表示/非表示にします。
 # Progress Window
@@ -252,6 +281,9 @@ header_about_button_tooltip = アプリに関する情報を含むダイアロ�
 
 ## General
 
+settings_number_of_threads = 使用されるスレッドの数
+settings_number_of_threads_tooltip = 使用するスレッドの数、0 は、使用可能なすべてのスレッドが使用されることを意味します。
+settings_label_restart = 設定を適用するにはアプリを再起動する必要があります！
 settings_ignore_other_filesystems = 他のファイルシステムを無視(Linuxのみ)
 settings_ignore_other_filesystems_tooltip =
     検索されたディレクトリと同じファイルシステムにないファイルを無視します。
@@ -373,8 +405,11 @@ progress_scanning_image = { $file_checked }/{ $all_files } の画像のハッシ
 progress_comparing_image_hashes = { $file_checked }/{ $all_files } 画像ハッシュの比較
 progress_scanning_music_tags_end = { $file_checked }/{ $all_files } 音楽ファイルのタグの比較
 progress_scanning_music_tags = { $file_checked }/{ $all_files } 音楽ファイルのタグを読み込み中
+progress_scanning_music_content_end = { $file_checked }/{ $all_files } 音楽ファイルのフィンガープリントの比較
+progress_scanning_music_content = { $file_checked }/{ $all_files } 音楽ファイルのフィンガープリントを計算中
 progress_scanning_empty_folders = { $folder_number } フォルダをスキャン中
 progress_scanning_size = { $file_number } ファイルのサイズをスキャン中
+progress_scanning_size_name = 名前と { $file_number } ファイルのサイズをスキャンしています
 progress_scanning_name = { $file_number } ファイルの名前をスキャン中
 progress_analyzed_partial_hash = { $file_checked }/{ $all_files } ファイルの部分ハッシュを分析中
 progress_analyzed_full_hash = { $file_checked }/{ $all_files } ファイルの完全ハッシュを分析中

@@ -9,53 +9,63 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  macos-cli:
+  macos:
     strategy:
       matrix:
         toolchain: [ stable ]
         type: [ release ]
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v2
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.toolchain }}
-          override: true
-
-      - uses: actions/cache@v2
-        with:
-          path: |
-            target
-          key: mac-${{github.ref}}-${{github.sha}}
-          restore-keys: |
-            mac-${{github.ref}}-${{github.sha}}
+      - uses: actions/checkout@v3
 
       - name: Install Homebrew
         run: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-      - name: Override link[WORKAROUND] # Looks that this is a bug with current homebrew or GitHub CI
-        run: rm '/usr/local/bin/2to3'
-
       - name: Install GTK4
-        run: brew install rust gtk4 libheif
+        run: |
+          brew link --overwrite python@3.11
+          brew install rust gtk4 libheif || true
+          brew link --overwrite python@3.11
+
+      - name: Setup rust version
+        run: rustup default ${{ matrix.toolchain }}
 
       - name: Build Release
-        run: cargo build --release --features heif
+        run: cargo build --release
         env:
           CARGO_INCREMENTAL: 0
         if: ${{ matrix.type == 'release'}}
 
       - name: Store MacOS CLI
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: czkawka_cli-${{ runner.os }}-${{ matrix.toolchain }}
           path: target/release/czkawka_cli
         if: ${{ matrix.type == 'release' }}
 
       - name: Store MacOS GUI
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: czkawka_gui-${{ runner.os }}-${{ matrix.toolchain }}
+          path: target/release/czkawka_gui
+        if: ${{ matrix.type == 'release' }}
+
+      - name: Build Release Heif
+        run: cargo build --release --features heif
+        env:
+          CARGO_INCREMENTAL: 0
+        if: ${{ matrix.type == 'release'}}
+
+      - name: Store MacOS CLI Heif
+        uses: actions/upload-artifact@v3
+        with:
+          name: czkawka_cli-${{ runner.os }}-${{ matrix.toolchain }}-heif
+          path: target/release/czkawka_cli
+        if: ${{ matrix.type == 'release' }}
+
+      - name: Store MacOS GUI Heif
+        uses: actions/upload-artifact@v3
+        with:
+          name: czkawka_gui-${{ runner.os }}-${{ matrix.toolchain }}-heif
           path: target/release/czkawka_gui
         if: ${{ matrix.type == 'release' }}

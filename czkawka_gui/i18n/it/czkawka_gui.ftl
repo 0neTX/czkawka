@@ -14,6 +14,22 @@ music_bitrate_checkbox = Bitrate
 music_genre_checkbox = Genere
 music_length_checkbox = Durata
 music_comparison_checkbox = Confronto approssimativo
+music_checking_by_tags = Etichette
+music_checking_by_content = Contenuto
+same_music_seconds_label = Durata minima del frammento
+same_music_similarity_label = Differenza massima
+same_music_tooltip =
+    La ricerca di file musicali simili dal suo contenuto può essere configurata impostando:
+    
+    - Il tempo minimo di frammento dopo il quale i file musicali possono essere identificati come simili
+    - La differenza massima tra due frammenti testati
+    
+    La chiave per ottenere buoni risultati è trovare combinazioni sensate di questi parametri, per fornito.
+    
+    Impostando il tempo minimo a 5s e la differenza massima a 1.0, cercherà frammenti quasi identici nei file.
+    Un tempo di 20 anni e una differenza massima di 6.0, d'altra parte, funziona bene per trovare remix/versioni live ecc.
+    
+    Per impostazione predefinita, ogni file musicale viene confrontato tra loro e questo può richiedere molto tempo quando si testano molti file, quindi è di solito meglio usare le cartelle di riferimento e specificare quali file devono essere confrontati tra loro (con la stessa quantità di file, il confronto delle impronte digitali sarà più veloce di almeno 4x che senza cartelle di riferimento).
 music_comparison_checkbox_tooltip =
     Cerca file musicali simili usando l'IA, che utilizza l'apprendimento automatico per rimuovere parentesi da una frase. Ad esempio, con questa opzione abilitata, i file in questione saranno considerati duplicati:
     
@@ -22,6 +38,7 @@ duplicate_case_sensitive_name = Case Sensitive
 duplicate_case_sensitive_name_tooltip =
     Se abilitato, raggruppa solo i record quando hanno esattamente lo stesso nome, ad es. Żołd <-> Żołd
     La disattivazione di tale opzione raggrupperà i nomi senza controllare se ogni lettera ha le stesse dimensioni, ad esempio żoŁD <-> Żołd
+duplicate_mode_size_name_combo_box = Dimensione e nome
 duplicate_mode_name_combo_box = Nome
 duplicate_mode_size_combo_box = Dimensione
 duplicate_mode_hash_combo_box = Hash
@@ -202,6 +219,11 @@ popover_custom_case_sensitive_check_button = Differenzia maiuscole/minuscole
 popover_custom_all_in_group_label = Non selezionare tutte le voci in un gruppo
 popover_custom_mode_unselect = Deselezione personalizzata
 popover_custom_mode_select = Selezione personalizzata
+popover_sort_file_name = Nome del file
+popover_sort_folder_name = Nome cartella
+popover_sort_full_name = Nome e cognome
+popover_sort_size = Dimensione
+popover_sort_selection = Selezione
 popover_invalid_regex = Regex non valida
 popover_valid_regex = Regex valida
 # Bottom buttons
@@ -212,6 +234,7 @@ bottom_save_button = Salva
 bottom_symlink_button = Collegamenti simbolici
 bottom_hardlink_button = Collegamenti fisici
 bottom_move_button = Sposta
+bottom_sort_button = Ordina
 bottom_search_button_tooltip = Avvia ricerca
 bottom_select_button_tooltip = Seleziona record. Solo i file/cartelle selezionati possono essere elaborati in seguito.
 bottom_delete_button_tooltip = Cancella i file/cartelle selezionati
@@ -224,10 +247,16 @@ bottom_hardlink_button_tooltip =
     Crea collegamenti fisici.
     Funziona solo quando sono selezionati almeno due risultati in un gruppo.
     Il primo è invariato e il secondo e poi sono hardlinked al primo.
+bottom_hardlink_button_not_available_tooltip =
+    Crea collegamenti fisici.
+    Il pulsante è disabilitato, perché non è possibile creare collegamenti fisici.
+    I collegamenti fisici funzionano solo con i privilegi di amministratore su Windows, quindi assicurati di eseguire l'app come amministratore.
+    Se l'app funziona già con tali privilegi, controlla problemi simili su Github.
 bottom_move_button_tooltip =
     Sposta i file nella directory scelta.
     Copia tutti i file nella directory senza conservare l'albero delle directory.
     Quando si tenta di spostare due file con il nome identico nella cartella, il secondo fallirà e mostrerà errore.
+bottom_sort_button_tooltip = Ordina file/cartelle in base al metodo selezionato.
 bottom_show_errors_tooltip = Mostra/Nasconde il pannello di testo inferiore.
 bottom_show_upper_notebook_tooltip = Mostra/Nasconde il pannello comandi.
 # Progress Window
@@ -251,6 +280,9 @@ header_about_button_tooltip = Apre la finestra delle informazioni sul programma.
 
 ## General
 
+settings_number_of_threads = Numero di thread usati
+settings_number_of_threads_tooltip = Numero di thread usati, 0 significa che tutti i thread disponibili saranno utilizzati.
+settings_label_restart = È necessario riavviare l'app per applicare le impostazioni!
 settings_ignore_other_filesystems = Ignora altri filesystem (solo Linux)
 settings_ignore_other_filesystems_tooltip =
     ignora i file che non sono nello stesso file system delle directory cercate.
@@ -372,8 +404,11 @@ progress_scanning_image = Hashing di { $file_checked }/{ $all_files } image
 progress_comparing_image_hashes = Confrontando { $file_checked }/{ $all_files } hash delle immagini
 progress_scanning_music_tags_end = Confrontando le etichette di { $file_checked }/{ $all_files } file musicali
 progress_scanning_music_tags = Leggendo le etichette di { $file_checked }/{ $all_files } file musicali
+progress_scanning_music_content_end = Confronto delle impronte digitali di { $file_checked }/{ $all_files } file musicale
+progress_scanning_music_content = Calcolo dell'impronta digitale di { $file_checked }/{ $all_files } file musicale
 progress_scanning_empty_folders = Verificando { $folder_number } cartelle
 progress_scanning_size = Leggendo le dimensioni di { $file_number } file
+progress_scanning_size_name = Scansione nome e dimensione del file { $file_number }
 progress_scanning_name = Leggendo il nome di { $file_number } file
 progress_analyzed_partial_hash = Analizzato gli hash parziali di { $file_checked }/{ $all_files } file
 progress_analyzed_full_hash = Analizzato gli hash completi di { $file_checked }/{ $all_files } file

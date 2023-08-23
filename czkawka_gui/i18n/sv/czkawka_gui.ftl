@@ -14,6 +14,22 @@ music_bitrate_checkbox = Bitrate
 music_genre_checkbox = Genre
 music_length_checkbox = Längd
 music_comparison_checkbox = Ungefärlig jämförelse
+music_checking_by_tags = Taggar
+music_checking_by_content = Innehåll
+same_music_seconds_label = Minsta fragment sekund varaktighet
+same_music_similarity_label = Maximal skillnad
+same_music_tooltip =
+    Sökning efter liknande musikfiler genom dess innehåll kan konfigureras genom att ställa in:
+    
+    - Minsta fragmenttid efter vilken musikfiler kan identifieras som liknande
+    - Maximal skillnad mellan två testade fragment
+    
+    Nyckeln till bra resultat är att hitta förnuftiga kombinationer av dessa parametrar, för tillhandahållen.
+    
+    Att ställa in den minsta tiden till 5s och den maximala skillnaden till 1.0, kommer att leta efter nästan identiska fragment i filerna.
+    En tid på 20-talet och en maximal skillnad på 6,0, å andra sidan, fungerar bra för att hitta remixer/live-versioner etc.
+    
+    Som standard jämförs varje musikfil med varandra och detta kan ta mycket tid vid testning av många filer, så är det oftast bättre att använda referensmappar och ange vilka filer som ska jämföras med varandra(med samma mängd filer, Att jämföra fingeravtryck kommer att vara snabbare minst 4x än utan referensmappar).
 music_comparison_checkbox_tooltip =
     Den söker efter liknande musikfiler med AI, som använder maskininlärning för att ta bort parenteser från en fras. Till exempel, med detta alternativ aktiverat, filerna i fråga kommer att betraktas som dubbletter:
     
@@ -23,6 +39,7 @@ duplicate_case_sensitive_name_tooltip =
     När detta är aktiverat spelar gruppen bara in när de har exakt samma namn t.ex. Żołd <-> Żołd
     
     Inaktivera sådana alternativ kommer gruppnamn utan att kontrollera om varje bokstav är samma storlek t.ex. żoŁD <-> Żołd
+duplicate_mode_size_name_combo_box = Storlek och namn
 duplicate_mode_name_combo_box = Namn
 duplicate_mode_size_combo_box = Storlek
 duplicate_mode_hash_combo_box = Hash
@@ -203,6 +220,11 @@ popover_custom_case_sensitive_check_button = Skiftlägeskänslighet
 popover_custom_all_in_group_label = Välj inte alla poster i gruppen
 popover_custom_mode_unselect = Avmarkera anpassad
 popover_custom_mode_select = Välj anpassad
+popover_sort_file_name = Filnamn
+popover_sort_folder_name = Mapp namn
+popover_sort_full_name = Fullständigt namn
+popover_sort_size = Storlek
+popover_sort_selection = Markerat
 popover_invalid_regex = Regex är ogiltigt
 popover_valid_regex = Regex är giltigt
 # Bottom buttons
@@ -213,6 +235,7 @@ bottom_save_button = Save
 bottom_symlink_button = Symlink
 bottom_hardlink_button = Hardlink
 bottom_move_button = Flytta
+bottom_sort_button = Sortera
 bottom_search_button_tooltip = Starta sökning
 bottom_select_button_tooltip = Välj poster. Endast valda filer/mappar kan senare bearbetas.
 bottom_delete_button_tooltip = Ta bort markerade filer/mappar.
@@ -225,10 +248,16 @@ bottom_hardlink_button_tooltip =
     Skapa hardlinks.
     Fungerar endast när minst två resultat i en grupp är valda.
     Först är oförändrad och andra och senare är hårt länkade till först.
+bottom_hardlink_button_not_available_tooltip =
+    Skapa hardlinks.
+    Knappen är inaktiverad, eftersom hardlinks inte kan skapas.
+    Hårdlänkar fungerar bara med administratörsrättigheter i Windows, så se till att köra appen som administratör.
+    Om appen redan fungerar med sådana rättigheter kontrollera liknande problem på Github.
 bottom_move_button_tooltip =
     Flyttar filer till vald katalog.
     Det kopierar alla filer till katalogen utan att bevara katalogträdet.
     När du försöker flytta två filer med identiskt namn till mappen kommer det andra att misslyckas och visa fel.
+bottom_sort_button_tooltip = Sortera filer/mappar enligt vald metod.
 bottom_show_errors_tooltip = Visa/Dölj undertextpanelen.
 bottom_show_upper_notebook_tooltip = Visa/Dölj övre anteckningsbokspanelen.
 # Progress Window
@@ -252,6 +281,9 @@ header_about_button_tooltip = Öppnar dialog med info om app.
 
 ## General
 
+settings_number_of_threads = Antal använda trådar
+settings_number_of_threads_tooltip = Antal gängor, 0 betyder att alla gängor kommer att användas.
+settings_label_restart = Du måste starta om appen för att tillämpa inställningar!
 settings_ignore_other_filesystems = Ignorera andra filsystem (endast Linux)
 settings_ignore_other_filesystems_tooltip =
     ignorerar filer som inte finns i samma filsystem som sökta kataloger.
@@ -373,8 +405,11 @@ progress_scanning_image = Hashning av { $file_checked }/{ $all_files } bild
 progress_comparing_image_hashes = Jämföra { $file_checked }/{ $all_files } bildhash
 progress_scanning_music_tags_end = Jämföra taggar för { $file_checked }/{ $all_files } musikfil
 progress_scanning_music_tags = Lästaggar för { $file_checked }/{ $all_files } musikfil
+progress_scanning_music_content_end = Jämföra fingeravtryck av { $file_checked }/{ $all_files } musikfil
+progress_scanning_music_content = Beräknar fingeravtryck av { $file_checked }/{ $all_files } musikfil
 progress_scanning_empty_folders = Skannar { $folder_number } mappen
 progress_scanning_size = Skannar storleken på { $file_number } fil
+progress_scanning_size_name = Skannar namn och storlek på { $file_number } fil
 progress_scanning_name = Skannar namn på { $file_number } fil
 progress_analyzed_partial_hash = Analyserade partiella hash av { $file_checked }/{ $all_files } filer
 progress_analyzed_full_hash = Analyserad full hash av { $file_checked }/{ $all_files } filer

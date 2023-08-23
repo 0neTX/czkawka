@@ -14,6 +14,22 @@ music_bitrate_checkbox = 码率
 music_genre_checkbox = 流派
 music_length_checkbox = 长度
 music_comparison_checkbox = 近似比较
+music_checking_by_tags = 标签
+music_checking_by_content = 内容
+same_music_seconds_label = 最小碎片第二持续时间
+same_music_similarity_label = 最大差异
+same_music_tooltip =
+    通过设置搜索类似的音乐文件。
+    
+    - 可以在最小的片段时间之后将音乐文件识别为相似
+    - 两个测试片段之间的最大差异
+    
+    良好结果的关键是找到这些参数的合理组合， 提供的资料。
+    
+    将最小时间设置为5秒，最大差设置为1.0，将寻找文件中几乎相同的片段。
+    另一方面，20秒和最大差6.0之间的时间对寻找混编/实时版本等非常有用。
+    
+    默认情况下，每个音乐文件彼此比较，这可能需要很多时间来测试许多文件， 通常最好使用参考文件夹并指定哪些文件可以相互比较(文件数量相同) 比较指纹至少要比没有参考文件夹快4x)。
 music_comparison_checkbox_tooltip =
     它使用 AI搜索类似的音乐文件，它使用机器学习从短语中删除括号。 例如，启用此选项， 所涉文件将被视为重复：
     
@@ -23,6 +39,7 @@ duplicate_case_sensitive_name_tooltip =
     启用时，仅当记录具有完全相同的名称时分组，例如 Żołd <-> Żołd
     
     禁用这种选项将不会检查每封字母是否相同的大小，例如 żoŁD <-> Żołd
+duplicate_mode_size_name_combo_box = 大小和名称
 duplicate_mode_name_combo_box = 名称
 duplicate_mode_size_combo_box = 大小
 duplicate_mode_hash_combo_box = 哈希
@@ -203,6 +220,11 @@ popover_custom_case_sensitive_check_button = 区分大小写
 popover_custom_all_in_group_label = 不在组中选择所有记录
 popover_custom_mode_unselect = 取消选择自定义
 popover_custom_mode_select = 选择自定义
+popover_sort_file_name = 文件名称
+popover_sort_folder_name = 文件夹名称
+popover_sort_full_name = 全名
+popover_sort_size = 大小
+popover_sort_selection = 选择
 popover_invalid_regex = 正则表达式无效
 popover_valid_regex = 正则表达式有效
 # Bottom buttons
@@ -213,6 +235,7 @@ bottom_save_button = 保存
 bottom_symlink_button = Symlink
 bottom_hardlink_button = Hardlink
 bottom_move_button = 移动
+bottom_sort_button = 排序
 bottom_search_button_tooltip = 开始搜索
 bottom_select_button_tooltip = 选择记录。只能稍后处理选定的文件/文件夹。
 bottom_delete_button_tooltip = 删除选中的文件/文件夹。
@@ -225,10 +248,16 @@ bottom_hardlink_button_tooltip =
     创建硬链接。
     只在选定组中至少两个结果时有效。
     第一个不变，第二个和第二个后来是与第一个联系在一起的。
+bottom_hardlink_button_not_available_tooltip =
+    创建硬链接。
+    按钮已禁用，因为无法创建硬链接。
+    硬链接仅适用于管理员在Windows上的权限，所以必须以管理员身份运行应用程序。
+    如果应用程序已经使用了这种权限，请检查类似的 Github。
 bottom_move_button_tooltip =
     移动文件到选定的目录。
     它复制所有文件到目录，而不保留目录树。
     试图将两个具有相同名称的文件移动到文件夹时，第二个将失败并显示错误。
+bottom_sort_button_tooltip = 根据选定的方法排序文件/文件夹。
 bottom_show_errors_tooltip = 显示/隐藏底部文本面板。
 bottom_show_upper_notebook_tooltip = 显示/隐藏主笔记本面板。
 # Progress Window
@@ -252,6 +281,9 @@ header_about_button_tooltip = 打开包含应用程序信息的对话框。
 
 ## General
 
+settings_number_of_threads = 使用的线程数
+settings_number_of_threads_tooltip = 用过的线程数，0表示所有可用线程都将被使用。
+settings_label_restart = 您需要重新启动应用才能应用设置！
 settings_ignore_other_filesystems = 忽略其它文件系统 (仅限Linux)
 settings_ignore_other_filesystems_tooltip =
     忽略与搜索的目录不在同一个文件系统中的文件。
@@ -373,8 +405,11 @@ progress_scanning_image = 散列 { $file_checked }/{ $all_files } 图像
 progress_comparing_image_hashes = 比较 { $file_checked }/{ $all_files } 图像哈希
 progress_scanning_music_tags_end = 对比标签 { $file_checked }/{ $all_files } 音乐文件
 progress_scanning_music_tags = 正在读取标签 { $file_checked }/{ $all_files } 音乐文件
+progress_scanning_music_content_end = 比较指纹 { $file_checked }/{ $all_files } 音乐文件
+progress_scanning_music_content = 正在计算指纹 { $file_checked }/{ $all_files } 音乐文件
 progress_scanning_empty_folders = 正在扫描 { $folder_number } 文件夹
 progress_scanning_size = 正在扫描文件大小 { $file_number }
+progress_scanning_size_name = 扫描文件名和大小 { $file_number }
 progress_scanning_name = 正在扫描 { $file_number } 文件的名称
 progress_analyzed_partial_hash = 分析了 { $file_checked }/{ $all_files } 文件的部分哈希
 progress_analyzed_full_hash = 分析了 { $file_checked }/{ $all_files } 文件的完整哈希值

@@ -14,6 +14,22 @@ music_bitrate_checkbox = Bitrate
 music_genre_checkbox = Gatunek
 music_length_checkbox = Długość
 music_comparison_checkbox = Przybliżone Porównywanie
+music_checking_by_tags = Tagi
+music_checking_by_content = Zawartość
+same_music_seconds_label = Minimalny fragment drugi czas trwania
+same_music_similarity_label = Maksymalna różnica
+same_music_tooltip =
+    Wyszukiwanie podobnych plików muzycznych przez jego zawartość można skonfigurować przez ustawienie:
+    
+    - Minimalny czas fragmentu, po którym pliki muzyczne mogą być zidentyfikowane jako podobne
+    - Maksymalna różnica między dwoma testowanymi fragmentami
+    
+    Kluczem do dobrych wyników jest znalezienie rozsądnych kombinacji tych parametrów, do dostarczania.
+    
+    Ustawianie minimalnego czasu na 5s i maksymalnej różnicy na 1.0, będzie szukać prawie identycznych fragmentów w plikach.
+    Czas 20s i maksymalna różnica 6.0, z drugiej strony, dobrze działa w poszukiwaniu remiksów/wersji na żywo itp.
+    
+    Domyślnie każdy plik muzyczny jest porównywany ze sobą, co może zająć dużo czasu podczas testowania wielu plików, więc zwykle lepiej jest używać folderów referencyjnych i określać, które pliki mają być porównywane ze sobą (z taką samą ilością plików, porównywanie odcisków palców będzie szybsze niż bez folderów referencyjnych).
 music_comparison_checkbox_tooltip =
     Wyszukuje podobne pliki muzyczne za pomocą AI, która używa nauki maszynowej, aby usunąć nawiasy z frazy. Na przykład, z tą opcją włączoną, rozpatrywane pliki będą traktowane jako duplikaty:
     
@@ -23,17 +39,18 @@ duplicate_case_sensitive_name_tooltip =
     Gdy włączone, grupowe rekordy tylko wtedy, gdy mają dokładnie taką samą nazwę, np. Żołd <-> Żołd
     
     Wyłączenie tej opcji spowoduje grupowanie nazw bez sprawdzania, czy każda litera ma ten sam rozmiar, np. żoŁD <-> Żołd
+duplicate_mode_size_name_combo_box = Rozmiar i nazwa
 duplicate_mode_name_combo_box = Nazwa
 duplicate_mode_size_combo_box = Rozmiar
 duplicate_mode_hash_combo_box = Hash
 duplicate_hash_type_tooltip =
-    Czkawka oferuje 3 typy hashów:
+    Czkawka oferuje 3 rodzaje hashów:
     
-    Blake3 - kryptograficzna funkcja skrótu. Domyślnie używane, ponieważ jest bardzo szybkie.
+    Blake3 - kryptograficzna funkcja skrótu. Jest to wartość domyślna, ponieważ jest bardzo szybka.
     
-    CRC32 - prosta funkcja haszująca. Powinna być szybsza niż Blake3, lecz bardzo rzadko może prowadzić do kolizji haszów.
+    CRC32 - prosta funkcja haszująca. Powinno to być szybsze od Blake3, ale bardzo rzadko może to prowadzić do kolizji.
     
-    XXH3 - bardzo podobna pod względem wydajności i jakości do Blake3 (lecz nie jest kryptograficzna).
+    XXH3 - bardzo podobna pod względem wydajności i jakości hashu do Blake3 (ale niekryptograficzna). Tak więc takie tryby mogą być łatwo wymienione.
 duplicate_check_method_tooltip =
     Na razie Czkawka oferuje trzy typy metod do znalezienia duplikatów przez:
     
@@ -203,6 +220,11 @@ popover_custom_case_sensitive_check_button = Rozróżniaj wielkość liter
 popover_custom_all_in_group_label = Nie zaznaczaj wszystkich rekordów w grupie
 popover_custom_mode_unselect = Własne odznaczanie
 popover_custom_mode_select = Własne zaznaczanie
+popover_sort_file_name = Nazwa pliku
+popover_sort_folder_name = Nazwa katalogu
+popover_sort_full_name = Pełna nazwa
+popover_sort_size = Rozmiar
+popover_sort_selection = Zaznaczanie
 popover_invalid_regex = Regex jest niepoprawny
 popover_valid_regex = Regex jest poprawny
 # Bottom buttons
@@ -213,6 +235,7 @@ bottom_save_button = Zapisz
 bottom_symlink_button = Symlink
 bottom_hardlink_button = Hardlink
 bottom_move_button = Przenieś
+bottom_sort_button = Sortuj
 bottom_search_button_tooltip = Rozpocznij wyszukiwanie
 bottom_select_button_tooltip = Wybierz rekordy. Tylko wybrane pliki/foldery mogą być później przetwarzane.
 bottom_delete_button_tooltip = Usuń zaznaczone elementy.
@@ -225,10 +248,16 @@ bottom_hardlink_button_tooltip =
     Tworzenie twardych linków.
     Działa tylko wtedy, gdy wybrano co najmniej dwa rekordy w grupie.
     Pierwszy jest niezmieniony, drugi i następny jest dowiązywany z pierwszym.
+bottom_hardlink_button_not_available_tooltip =
+    Tworzenie twardych dowiązań.
+    Przycisk jest zablokowany, gdyż stworzenie twardego dowiązania nie jest możliwe.
+    Dowiązanie tego rodzaju może tworzyć administrator w systemie Windows, więc należy upewnić się że aplikacja jest uruchomiona przez z tymi uprawnieniami.
+    Jeśli aplikacja działa z nimi, należy przeszukać issues w Githubie celem znalezienia możliwych rozwiązań danego problemu.
 bottom_move_button_tooltip =
     Przenosi pliki do wybranego katalogu.
     Kopiuje wszystkie pliki do katalogu bez zachowania struktury plików.
     Podczas próby przeniesienia dwóch plików o identycznej nazwie do folderu, drugi plik nie zostanie przeniesiony i pojawi się błąd.
+bottom_sort_button_tooltip = Sortuje pliki/foldery zgodnie z wybraną metodą.
 bottom_show_errors_tooltip = Pokaż/Ukryj dolny panel tekstowy.
 bottom_show_upper_notebook_tooltip = Pokazuje/ukrywa górny panel.
 # Progress Window
@@ -252,6 +281,9 @@ header_about_button_tooltip = Otwórz okno z informacjami o programie.
 
 ## General
 
+settings_number_of_threads = Liczba używanych wątków
+settings_number_of_threads_tooltip = Liczba używanych wątków, 0 oznacza, że zostaną użyte wszystkie dostępne wątki.
+settings_label_restart = Musisz ponownie uruchomić aplikację, aby aplikacja zaciągnęła nowe ustawienia!
 settings_ignore_other_filesystems = Ignoruj inne systemy plików (tylko Linux)
 settings_ignore_other_filesystems_tooltip =
     ignoruje pliki, które nie są w tym samym systemie plików co przeszukiwane katalogi.
@@ -373,8 +405,11 @@ progress_scanning_image = Hashowanie { $file_checked }/{ $all_files } obrazu
 progress_comparing_image_hashes = Porównywanie { $file_checked }/{ $all_files } hashu obrazu
 progress_scanning_music_tags_end = Porównywanie tagów { $file_checked }/{ $all_files } pliku audio
 progress_scanning_music_tags = Sczytywanie tagów { $file_checked }/{ $all_files } pliku audio
+progress_scanning_music_content_end = Porównywanie odcisku palca { $file_checked }/{ $all_files } pliku muzycznego
+progress_scanning_music_content = Obliczanie odcisku palca { $file_checked }/{ $all_files } pliku muzycznego
 progress_scanning_empty_folders = Przeszukiwanie { $folder_number } folderu
 progress_scanning_size = Sprawdzanie rozmiaru { $file_number } pliku
+progress_scanning_size_name = Skanowanie nazwy i rozmiaru pliku { $file_number }
 progress_scanning_name = Sprawdzanie nazwy { $file_number } pliku
 progress_analyzed_partial_hash = Obliczanie częściowego hashu { $file_checked }/{ $all_files } pliku
 progress_analyzed_full_hash = Obliczanie pełnego hashu { $file_checked }/{ $all_files } pliku

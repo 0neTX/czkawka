@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+
 #[cfg(target_family = "unix")]
 use std::{fs, os::unix::fs::MetadataExt};
 
@@ -13,24 +13,23 @@ pub struct Directories {
     pub excluded_directories: Vec<PathBuf>,
     pub included_directories: Vec<PathBuf>,
     pub reference_directories: Vec<PathBuf>,
-    exclude_other_filesystems: Option<bool>,
+    pub exclude_other_filesystems: Option<bool>,
     #[cfg(target_family = "unix")]
-    included_dev_ids: Vec<u64>,
+    pub included_dev_ids: Vec<u64>,
 }
 
 impl Directories {
+    #[must_use]
     pub fn new() -> Self {
         Default::default()
     }
 
     pub fn set_reference_directory(&mut self, reference_directory: Vec<PathBuf>) {
-        self.reference_directories = reference_directory
+        self.reference_directories = reference_directory;
     }
 
     /// Setting included directories, at least one must be provided or scan won't start
     pub fn set_included_directory(&mut self, included_directory: Vec<PathBuf>, text_messages: &mut Messages) -> bool {
-        let start_time: SystemTime = SystemTime::now();
-
         if included_directory.is_empty() {
             text_messages.errors.push(flc!("core_missing_no_chosen_included_directory"));
             return false;
@@ -89,13 +88,11 @@ impl Directories {
 
         self.included_directories = checked_directories;
 
-        Common::print_time(start_time, SystemTime::now(), "set_included_directory".to_string());
         true
     }
 
     /// Setting absolute path to exclude from search
     pub fn set_excluded_directory(&mut self, excluded_directory: Vec<PathBuf>, text_messages: &mut Messages) {
-        let start_time: SystemTime = SystemTime::now();
         if excluded_directory.is_empty() {
             return;
         }
@@ -147,19 +144,15 @@ impl Directories {
             checked_directories.push(directory);
         }
         self.excluded_directories = checked_directories;
-
-        Common::print_time(start_time, SystemTime::now(), "set_excluded_directory".to_string());
     }
 
     #[cfg(target_family = "unix")]
     pub fn set_exclude_other_filesystems(&mut self, exclude_other_filesystems: bool) {
-        self.exclude_other_filesystems = Some(exclude_other_filesystems)
+        self.exclude_other_filesystems = Some(exclude_other_filesystems);
     }
 
     /// Remove unused entries when included or excluded overlaps with each other or are duplicated etc.
     pub fn optimize_directories(&mut self, recursive_search: bool, text_messages: &mut Messages) -> bool {
-        let start_time: SystemTime = SystemTime::now();
-
         let mut optimized_included: Vec<PathBuf> = Vec::new();
         let mut optimized_excluded: Vec<PathBuf> = Vec::new();
 
@@ -279,7 +272,7 @@ impl Directories {
         {
             let mut ref_folders = Vec::new();
             for folder in &self.reference_directories {
-                if self.included_directories.iter().any(|e| folder.starts_with(&e)) {
+                if self.included_directories.iter().any(|e| folder.starts_with(e)) {
                     ref_folders.push(folder.clone());
                 }
             }
@@ -294,7 +287,6 @@ impl Directories {
         // Not needed, but better is to have sorted everything
         self.excluded_directories.sort_unstable();
         self.included_directories.sort_unstable();
-        Common::print_time(start_time, SystemTime::now(), "optimize_directories".to_string());
 
         // Get device IDs for included directories
         #[cfg(target_family = "unix")]
@@ -313,6 +305,11 @@ impl Directories {
         true
     }
 
+    #[must_use]
+    pub fn is_in_referenced_directory(&self, path: &Path) -> bool {
+        self.reference_directories.iter().any(|e| path.starts_with(e))
+    }
+
     /// Checks whether a specified directory is excluded from searching
     pub fn is_excluded(&self, path: impl AsRef<Path>) -> bool {
         let path = path.as_ref();
@@ -323,6 +320,7 @@ impl Directories {
     }
 
     #[cfg(target_family = "unix")]
+    #[must_use]
     pub fn exclude_other_filesystems(&self) -> bool {
         self.exclude_other_filesystems.unwrap_or(false)
     }

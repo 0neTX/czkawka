@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use fs_extra::dir::CopyOptions;
 use gtk4::prelude::*;
 use gtk4::{ResponseType, TreePath};
 
@@ -22,11 +23,10 @@ pub fn connect_button_move(gui_data: &GuiData) {
     let entry_info = gui_data.entry_info.clone();
     let text_view_errors = gui_data.text_view_errors.clone();
 
-    let window_main = gui_data.window_main.clone();
-
     let preview_path = gui_data.preview_path.clone();
+    let file_dialog_move_to_folder = gui_data.file_dialog_move_to_folder.clone();
 
-    buttons_move.connect_clicked(move |_| {
+    file_dialog_move_to_folder.connect_response(move |file_chooser, response_type| {
         let nb_number = notebook_main.current_page().unwrap();
         let tree_view = &main_tree_views[nb_number as usize];
         let nb_object = &NOTEBOOKS_INFO[nb_number as usize];
@@ -37,61 +37,10 @@ pub fn connect_button_move(gui_data: &GuiData) {
         if number_of_selected_items == 0 {
             return;
         }
-        move_things(
-            tree_view,
-            nb_object.column_name,
-            nb_object.column_path,
-            nb_object.column_header,
-            nb_object.column_selection,
-            &entry_info,
-            &text_view_errors,
-            &window_main,
-        );
 
-        match &nb_object.notebook_type {
-            NotebookMainEnum::SimilarImages | NotebookMainEnum::Duplicate => {
-                if nb_object.notebook_type == NotebookMainEnum::SimilarImages {
-                    image_preview_similar_images.hide();
-                } else {
-                    image_preview_duplicates.hide();
-                }
-                *preview_path.borrow_mut() = "".to_string();
-            }
-            _ => {}
-        }
-    });
-}
+        reset_text_view(&text_view_errors);
 
-// TODO add progress bar
-fn move_things(
-    tree_view: &gtk4::TreeView,
-    column_file_name: i32,
-    column_path: i32,
-    column_header: Option<i32>,
-    column_selection: i32,
-    entry_info: &gtk4::Entry,
-    text_view_errors: &gtk4::TextView,
-    window_main: &gtk4::Window,
-) {
-    reset_text_view(text_view_errors);
-
-    let chooser = gtk4::FileChooserDialog::builder()
-        .title(&flg!("move_files_title_dialog"))
-        .action(gtk4::FileChooserAction::SelectFolder)
-        .transient_for(window_main)
-        .modal(true)
-        .build();
-    chooser.add_button(&flg!("general_ok_button"), ResponseType::Ok);
-    chooser.add_button(&flg!("general_close_button"), ResponseType::Cancel);
-
-    chooser.set_select_multiple(false);
-    chooser.show();
-
-    let entry_info = entry_info.clone();
-    let text_view_errors = text_view_errors.clone();
-    let tree_view = tree_view.clone();
-    chooser.connect_response(move |file_chooser, response_type| {
-        if response_type == gtk4::ResponseType::Ok {
+        if response_type == ResponseType::Accept {
             let mut folders: Vec<PathBuf> = Vec::new();
             let g_files = file_chooser.files();
             for index in 0..g_files.n_items() {
@@ -115,23 +64,45 @@ fn move_things(
                 );
             } else {
                 let folder = folders[0].clone();
-                if let Some(column_header) = column_header {
+                if let Some(column_header) = nb_object.column_header {
                     move_with_tree(
-                        &tree_view,
-                        column_file_name,
-                        column_path,
+                        tree_view,
+                        nb_object.column_name,
+                        nb_object.column_path,
                         column_header,
-                        column_selection,
-                        folder,
+                        nb_object.column_selection,
+                        &folder,
                         &entry_info,
                         &text_view_errors,
                     );
                 } else {
-                    move_with_list(&tree_view, column_file_name, column_path, column_selection, folder, &entry_info, &text_view_errors);
+                    move_with_list(
+                        tree_view,
+                        nb_object.column_name,
+                        nb_object.column_path,
+                        nb_object.column_selection,
+                        &folder,
+                        &entry_info,
+                        &text_view_errors,
+                    );
                 }
             }
         }
-        file_chooser.close();
+        match &nb_object.notebook_type {
+            NotebookMainEnum::SimilarImages | NotebookMainEnum::Duplicate => {
+                if nb_object.notebook_type == NotebookMainEnum::SimilarImages {
+                    image_preview_similar_images.hide();
+                } else {
+                    image_preview_duplicates.hide();
+                }
+                *preview_path.borrow_mut() = String::new();
+            }
+            _ => {}
+        }
+    });
+
+    buttons_move.connect_clicked(move |_| {
+        file_dialog_move_to_folder.show();
     });
 }
 
@@ -141,7 +112,7 @@ fn move_with_tree(
     column_path: i32,
     column_header: i32,
     column_selection: i32,
-    destination_folder: PathBuf,
+    destination_folder: &Path,
     entry_info: &gtk4::Entry,
     text_view_errors: &gtk4::TextView,
 ) {
@@ -169,7 +140,7 @@ fn move_with_tree(
         return; // No selected rows
     }
 
-    move_files_common(&selected_rows, &model, column_file_name, column_path, &destination_folder, entry_info, text_view_errors);
+    move_files_common(&selected_rows, &model, column_file_name, column_path, destination_folder, entry_info, text_view_errors);
 
     clean_invalid_headers(&model, column_header, column_path);
 }
@@ -179,7 +150,7 @@ fn move_with_list(
     column_file_name: i32,
     column_path: i32,
     column_selection: i32,
-    destination_folder: PathBuf,
+    destination_folder: &Path,
     entry_info: &gtk4::Entry,
     text_view_errors: &gtk4::TextView,
 ) {
@@ -203,7 +174,7 @@ fn move_with_list(
         return; // No selected rows
     }
 
-    move_files_common(&selected_rows, &model, column_file_name, column_path, &destination_folder, entry_info, text_view_errors)
+    move_files_common(&selected_rows, &model, column_file_name, column_path, destination_folder, entry_info, text_view_errors);
 }
 
 fn move_files_common(
@@ -215,7 +186,7 @@ fn move_files_common(
     entry_info: &gtk4::Entry,
     text_view_errors: &gtk4::TextView,
 ) {
-    let mut messages: String = "".to_string();
+    let mut messages: String = String::new();
 
     let mut moved_files: u32 = 0;
 
@@ -229,7 +200,7 @@ fn move_files_common(
         let thing = get_full_name_from_path_name(&path, &file_name);
         let destination_file = destination_folder.join(file_name);
         if Path::new(&thing).is_dir() {
-            if let Err(e) = fs_extra::dir::move_dir(&thing, &destination_file, &fs_extra::dir::CopyOptions::new()) {
+            if let Err(e) = fs_extra::dir::move_dir(&thing, &destination_file, &CopyOptions::new()) {
                 messages += flg!("move_folder_failed", generate_translation_hashmap(vec![("name", thing), ("reason", e.to_string())])).as_str();
                 messages += "\n";
                 continue 'next_result;

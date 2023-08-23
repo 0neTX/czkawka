@@ -16,6 +16,23 @@ music_bitrate_checkbox = Bitrate
 music_genre_checkbox = Genre
 music_length_checkbox = Length
 music_comparison_checkbox = Approximate Comparison
+music_checking_by_tags = Tags
+music_checking_by_content = Content
+same_music_seconds_label = Minimal fragment second duration
+same_music_similarity_label = Maximum difference
+
+same_music_tooltip =
+        Searching for similar music files by its content can be configured by setting:
+
+        - The minimum fragment time after which music files can be identified as similar
+        - The maximum difference difference between two tested fragments
+
+        The key to good results is to find sensible combinations of these parameters, for provided.
+
+        Setting the minimum time to 5s and the maximum difference to 1.0, will look for almost identical fragments in the files.
+        A time of 20s and a maximum difference of 6.0, on the other hand, works well for finding remixes/live versions etc.
+
+        By default, each music file is compared to each other and this can take a lot of time when testing many files, so it is usually better to use reference folders and specifying which files are to be compared with each other(with same amount of files, comparing fingerprints will be faster at least 4x than without reference folders).
 
 music_comparison_checkbox_tooltip =
         It searches for similar music files using AI, which uses machine learning to remove parentheses from a phrase. For example, with this option enabled, the files in question will be considered duplicates:
@@ -28,6 +45,7 @@ duplicate_case_sensitive_name_tooltip =
 
         Disabling such option will group names without checking if each letter is same size e.g. żoŁD <-> Żołd
 
+duplicate_mode_size_name_combo_box = Size and Name
 duplicate_mode_name_combo_box = Name
 duplicate_mode_size_combo_box = Size
 duplicate_mode_hash_combo_box = Hash
@@ -53,11 +71,11 @@ duplicate_check_method_tooltip =
 image_hash_size_tooltip =
         Each checked image produce special hash which can be compared with every other, and small difference between them means that this images are similar.
 
-        8 hash size is quite good to find images that are only little similar to original. With bigger set of images(>1000) will produce big amount of false positives, so I recommend to use for such amount bigger hash size.
+        8 hash size is quite good to find images that are only little similar to original. With bigger set of images (>1000) will produce big amount of false positives, so I recommend to use for such amount bigger hash size.
 
         16 is default hash size which is quite good compromise between finding even a little similar images and having small amount of hash collisions.
 
-        32 and 64 hashes finds only very similar images, but almost should not have any false positives(maybe except some images with alpha channel).
+        32 and 64 hashes finds only very similar images, but almost should not have any false positives (maybe except some images with alpha channel).
 
 image_resize_filter_tooltip = 
         To compute hash of image, library must first resize it.
@@ -238,6 +256,11 @@ popover_custom_all_in_group_label = Don't select all records in group
 popover_custom_mode_unselect = Unselect Custom
 popover_custom_mode_select = Select Custom
 
+popover_sort_file_name = File name
+popover_sort_folder_name = Folder name
+popover_sort_full_name = Full name
+popover_sort_size = Size
+popover_sort_selection = Selection
 
 popover_invalid_regex = Regex is invalid
 popover_valid_regex = Regex is valid
@@ -250,6 +273,7 @@ bottom_save_button = Save
 bottom_symlink_button = Symlink
 bottom_hardlink_button = Hardlink
 bottom_move_button = Move
+bottom_sort_button = Sort
 
 bottom_search_button_tooltip = Start search
 bottom_select_button_tooltip = Select records. Only selected files/folders can be later processed.
@@ -263,10 +287,17 @@ bottom_hardlink_button_tooltip =
         Create hardlinks.
         Only works when at least two results in a group are selected.
         First is unchanged and second and later are hardlinked to first.
-bottom_move_button_tooltip = 
+bottom_hardlink_button_not_available_tooltip =
+        Create hardlinks.
+        Button is disabled, because hardlinks cannot be created.
+        Hardlinks only works with administrator privileges on Windows, so be sure to run app as administrator.
+        If app already works with such privileges check for similar issues on Github.
+bottom_move_button_tooltip =
         Moves files to chosen directory.
         It copies all files to the directory without preserving the directory tree.
         When trying to move two files with identical name to folder, second will fail and show error.
+bottom_sort_button_tooltip =
+        Sorts files/folders according to selected method.
 
 bottom_show_errors_tooltip = Show/Hide bottom text panel.
 bottom_show_upper_notebook_tooltip = Show/Hide upper notebook panel.
@@ -292,7 +323,12 @@ header_about_button_tooltip = Opens dialog with info about app.
 
 # Settings
 ## General
-settings_ignore_other_filesystems = Ignore other filesystems(only Linux)
+settings_number_of_threads = Number of used threads
+settings_number_of_threads_tooltip = Number of used threads, 0 means that all available threads will be used.
+
+settings_label_restart = You need to restart app to apply settings!
+
+settings_ignore_other_filesystems = Ignore other filesystems (only Linux)
 settings_ignore_other_filesystems_tooltip =
         ignores files that are not in the same file system as searched directories.
 
@@ -427,8 +463,11 @@ progress_scanning_image = Hashing of {$file_checked}/{$all_files} image
 progress_comparing_image_hashes = Comparing {$file_checked}/{$all_files} image hash
 progress_scanning_music_tags_end = Comparing tags of {$file_checked}/{$all_files} music file
 progress_scanning_music_tags = Reading tags of {$file_checked}/{$all_files} music file
+progress_scanning_music_content_end = Comparing fingerprint of {$file_checked}/{$all_files} music file
+progress_scanning_music_content = Calculating fingerprint of {$file_checked}/{$all_files} music file
 progress_scanning_empty_folders = Scanning {$folder_number} folder
 progress_scanning_size = Scanning size of {$file_number} file
+progress_scanning_size_name = Scanning name and size of {$file_number} file
 progress_scanning_name = Scanning name of {$file_number} file
 progress_analyzed_partial_hash = Analyzed partial hash of {$file_checked}/{$all_files} files
 progress_analyzed_full_hash = Analyzed full hash of {$file_checked}/{$all_files} files

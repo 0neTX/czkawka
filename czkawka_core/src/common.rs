@@ -1,17 +1,54 @@
 use std::ffi::OsString;
-use std::fs;
-use std::fs::{File, OpenOptions};
+use std::fs::{DirEntry, File, OpenOptions};
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread::{sleep, JoinHandle};
+use std::time::{Duration, SystemTime};
+use std::{fs, thread};
 
 #[cfg(feature = "heif")]
 use anyhow::Result;
 use directories_next::ProjectDirs;
+use futures::channel::mpsc::UnboundedSender;
 use image::{DynamicImage, ImageBuffer, Rgb};
 use imagepipe::{ImageSource, Pipeline};
 #[cfg(feature = "heif")]
-use libheif_rs::{Channel, ColorSpace, HeifContext, RgbChroma};
+use libheif_rs::{ColorSpace, HeifContext, RgbChroma};
+
+// #[cfg(feature = "heif")]
+// use libheif_rs::LibHeif;
+use crate::common_dir_traversal::{CheckingMethod, ProgressData, ToolType};
+use crate::common_directory::Directories;
+use crate::common_items::ExcludedItems;
+use crate::common_traits::ResultEntry;
+
+static NUMBER_OF_THREADS: state::InitCell<usize> = state::InitCell::new();
+
+pub fn get_number_of_threads() -> usize {
+    let data = NUMBER_OF_THREADS.get();
+    if *data >= 1 {
+        *data
+    } else {
+        num_cpus::get()
+    }
+}
+
+pub fn set_default_number_of_threads() {
+    set_number_of_threads(num_cpus::get());
+}
+
+#[must_use]
+pub fn get_default_number_of_threads() -> usize {
+    num_cpus::get()
+}
+
+pub fn set_number_of_threads(thread_number: usize) {
+    NUMBER_OF_THREADS.set(thread_number);
+
+    rayon::ThreadPoolBuilder::new().num_threads(get_number_of_threads()).build_global().unwrap();
+}
 
 /// Class for common functions used across other class/functions
 pub const RAW_IMAGE_EXTENSIONS: &[&str] = &[
@@ -103,11 +140,13 @@ pub fn open_cache_folder(cache_file_name: &str, save_to_cache: bool, use_json: b
 
 #[cfg(feature = "heif")]
 pub fn get_dynamic_image_from_heic(path: &str) -> Result<DynamicImage> {
+    // let libheif = LibHeif::new();
     let im = HeifContext::read_from_file(path)?;
     let handle = im.primary_image_handle()?;
-    let image = handle.decode(ColorSpace::Rgb(RgbChroma::Rgb), false)?;
-    let width = image.width(Channel::Interleaved).map_err(|e| anyhow::anyhow!("{}", e))?;
-    let height = image.height(Channel::Interleaved).map_err(|e| anyhow::anyhow!("{}", e))?;
+    // let image = libheif.decode(&handle, ColorSpace::Rgb(RgbChroma::Rgb), None)?; // Enable when using libheif 0.19
+    let image = handle.decode(ColorSpace::Rgb(RgbChroma::Rgb), None)?;
+    let width = image.width();
+    let height = image.height();
     let planes = image.planes();
     let interleaved_plane = planes.interleaved.unwrap();
     ImageBuffer::from_raw(width, height, interleaved_plane.data.to_owned())
@@ -148,17 +187,15 @@ pub fn get_dynamic_image_from_raw_image(path: impl AsRef<Path> + std::fmt::Debug
         }
     };
 
-    let image = match ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(image.width as u32, image.height as u32, image.data) {
-        Some(image) => image,
-        None => {
-            return None;
-        }
+    let Some(image) = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(image.width as u32, image.height as u32, image.data) else {
+        return None;
     };
 
     // println!("Properly hashed {:?}", path);
     Some(DynamicImage::ImageRgb8(image))
 }
 
+#[must_use]
 pub fn split_path(path: &Path) -> (String, String) {
     match (path.parent(), path.file_name()) {
         (Some(dir), Some(file)) => (dir.display().to_string(), file.to_string_lossy().into_owned()),
@@ -167,6 +204,7 @@ pub fn split_path(path: &Path) -> (String, String) {
     }
 }
 
+#[must_use]
 pub fn create_crash_message(library_name: &str, file_path: &str, home_library_url: &str) -> String {
     format!("{library_name} library crashed when opening \"{file_path}\", please check if this is fixed with the latest version of {library_name} (e.g. with https://github.com/qarmin/crates_tester) and if it is not fixed, please report bug here - {home_library_url}")
 }
@@ -174,7 +212,7 @@ pub fn create_crash_message(library_name: &str, file_path: &str, home_library_ur
 impl Common {
     /// Printing time which took between start and stop point and prints also function name
     #[allow(unused_variables)]
-    pub fn print_time(start_time: SystemTime, end_time: SystemTime, function_name: String) {
+    pub fn print_time(start_time: SystemTime, end_time: SystemTime, function_name: &str) {
         #[cfg(debug_assertions)]
         println!(
             "Execution of function \"{}\" took {:?}",
@@ -183,35 +221,38 @@ impl Common {
         );
     }
 
+    #[must_use]
     pub fn delete_multiple_entries(entries: &[String]) -> Vec<String> {
         let mut path: &Path;
         let mut warnings: Vec<String> = Vec::new();
         for entry in entries {
             path = Path::new(entry);
             if path.is_dir() {
-                if let Err(e) = fs::remove_dir_all(&entry) {
-                    warnings.push(format!("Failed to remove folder {}, reason {}", entry, e));
+                if let Err(e) = fs::remove_dir_all(entry) {
+                    warnings.push(format!("Failed to remove folder {entry}, reason {e}"));
                 }
-            } else if let Err(e) = fs::remove_file(&entry) {
-                warnings.push(format!("Failed to remove file {}, reason {}", entry, e));
+            } else if let Err(e) = fs::remove_file(entry) {
+                warnings.push(format!("Failed to remove file {entry}, reason {e}"));
             }
         }
         warnings
     }
+    #[must_use]
     pub fn delete_one_entry(entry: &str) -> String {
         let path: &Path = Path::new(entry);
-        let mut warning: String = String::from("");
+        let mut warning: String = String::new();
         if path.is_dir() {
-            if let Err(e) = fs::remove_dir_all(&entry) {
-                warning = format!("Failed to remove folder {}, reason {}", entry, e)
+            if let Err(e) = fs::remove_dir_all(entry) {
+                warning = format!("Failed to remove folder {entry}, reason {e}");
             }
-        } else if let Err(e) = fs::remove_file(&entry) {
-            warning = format!("Failed to remove file {}, reason {}", entry, e)
+        } else if let Err(e) = fs::remove_file(entry) {
+            warning = format!("Failed to remove file {entry}, reason {e}");
         }
         warning
     }
 
     /// Function to check if directory match expression
+    #[must_use]
     pub fn regex_check(expression: &str, directory: impl AsRef<Path>) -> bool {
         if expression == "*" {
             return true;
@@ -241,7 +282,7 @@ impl Common {
         let mut position_of_splits: Vec<usize> = Vec::new();
 
         // `git*` shouldn't be true for `/gitsfafasfs`
-        if !expression.starts_with('*') && directory.find(&splits[0]).unwrap() > 0 {
+        if !expression.starts_with('*') && directory.find(splits[0]).unwrap() > 0 {
             return false;
         }
         // `*home` shouldn't be true for `/homeowner`
@@ -250,7 +291,7 @@ impl Common {
         }
 
         // At the end we check if parts between * are correctly positioned
-        position_of_splits.push(directory.find(&splits[0]).unwrap());
+        position_of_splits.push(directory.find(splits[0]).unwrap());
         let mut current_index: usize;
         let mut found_index: usize;
         for i in splits[1..].iter().enumerate() {
@@ -264,6 +305,7 @@ impl Common {
         true
     }
 
+    #[must_use]
     pub fn normalize_windows_path(path_to_change: impl AsRef<Path>) -> PathBuf {
         let path = path_to_change.as_ref();
 
@@ -287,6 +329,103 @@ impl Common {
             _ => path.to_path_buf(),
         }
     }
+}
+
+pub fn check_folder_children(
+    dir_result: &mut Vec<PathBuf>,
+    warnings: &mut Vec<String>,
+    current_folder: &Path,
+    entry_data: &DirEntry,
+    recursive_search: bool,
+    directories: &Directories,
+    excluded_items: &ExcludedItems,
+) {
+    if !recursive_search {
+        return;
+    }
+
+    let next_folder = current_folder.join(entry_data.file_name());
+    if directories.is_excluded(&next_folder) {
+        return;
+    }
+
+    if excluded_items.is_excluded(&next_folder) {
+        return;
+    }
+
+    #[cfg(target_family = "unix")]
+    if directories.exclude_other_filesystems() {
+        match directories.is_on_other_filesystems(&next_folder) {
+            Ok(true) => return,
+            Err(e) => warnings.push(e),
+            _ => (),
+        }
+    }
+
+    dir_result.push(next_folder);
+}
+
+#[must_use]
+pub fn filter_reference_folders_generic<T>(entries_to_check: Vec<Vec<T>>, directories: &Directories) -> Vec<(T, Vec<T>)>
+where
+    T: ResultEntry,
+{
+    entries_to_check
+        .into_iter()
+        .filter_map(|vec_file_entry| {
+            let (mut files_from_referenced_folders, normal_files): (Vec<_>, Vec<_>) =
+                vec_file_entry.into_iter().partition(|e| directories.is_in_referenced_directory(e.get_path()));
+
+            if files_from_referenced_folders.is_empty() || normal_files.is_empty() {
+                None
+            } else {
+                Some((files_from_referenced_folders.pop().unwrap(), normal_files))
+            }
+        })
+        .collect::<Vec<(T, Vec<T>)>>()
+}
+
+#[must_use]
+pub fn prepare_thread_handler_common(
+    progress_sender: Option<&UnboundedSender<ProgressData>>,
+    current_stage: u8,
+    max_stage: u8,
+    max_value: usize,
+    checking_method: CheckingMethod,
+    tool_type: ToolType,
+) -> (JoinHandle<()>, Arc<AtomicBool>, Arc<AtomicUsize>, AtomicBool) {
+    let progress_thread_run = Arc::new(AtomicBool::new(true));
+    let atomic_counter = Arc::new(AtomicUsize::new(0));
+    let check_was_stopped = AtomicBool::new(false);
+    let progress_thread_sender = if let Some(progress_sender) = progress_sender {
+        let progress_send = progress_sender.clone();
+        let progress_thread_run = progress_thread_run.clone();
+        let atomic_counter = atomic_counter.clone();
+        thread::spawn(move || loop {
+            progress_send
+                .unbounded_send(ProgressData {
+                    checking_method,
+                    current_stage,
+                    max_stage,
+                    entries_checked: atomic_counter.load(Ordering::Relaxed),
+                    entries_to_check: max_value,
+                    tool_type,
+                })
+                .unwrap();
+            if !progress_thread_run.load(Ordering::Relaxed) {
+                break;
+            }
+            sleep(Duration::from_millis(LOOP_DURATION as u64));
+        })
+    } else {
+        thread::spawn(|| {})
+    };
+    (progress_thread_sender, progress_thread_run, atomic_counter, check_was_stopped)
+}
+
+pub fn send_info_and_wait_for_ending_all_threads(progress_thread_run: &Arc<AtomicBool>, progress_thread_handle: JoinHandle<()>) {
+    progress_thread_run.store(false, Ordering::Relaxed);
+    progress_thread_handle.join().unwrap();
 }
 
 #[cfg(test)]

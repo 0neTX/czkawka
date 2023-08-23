@@ -14,6 +14,22 @@ music_bitrate_checkbox = Bitrate
 music_genre_checkbox = Sjanger
 music_length_checkbox = Lengde
 music_comparison_checkbox = Omtrentlig sammenligning
+music_checking_by_tags = Tagger
+music_checking_by_content = Innhold
+same_music_seconds_label = Minste fragment andre varighet
+same_music_similarity_label = Maksimal differanse
+same_music_tooltip =
+    Søker etter lignende musikkfiler av innholdet kan konfigureres ved å gå inn:
+    
+    - Minimumsfragmenteringstiden etter hvilken musikkfiler som kan identifiseres som lignende
+    - Maksimal forskjell mellom to testede fragmenter
+    
+    Nøkkelen til gode resultater er å finne fornuftige kombinasjoner av disse parametrene, for utlevert.
+    
+    Angir minimum tid til 5 s og maksimal forskjell til 1,0, vil se etter nesten identiske fragmenter i filene.
+    En tid på 20 s og en maksimal forskjell på 6.0, for den andre siden fungerer bra for å finne remikser/levende versjoner osv.
+    
+    Som standard kan hver musikkfil sammenlignes med hverandre, og dette kan ta mye tid når du tester mange filer, slik at det vanligvis er bedre å bruke referanselapper og spesifisere hvilke filer som skal sammenlignes med hverandre (med samme mengde filer, å sammenligne fingeravtrykk vil være raskere minst 4 x enn uten referansemapper).
 music_comparison_checkbox_tooltip =
     Den søker etter lignende musikkfiler ved hjelp av AI, som bruker maskiner til å fjerne parenteser fra et frase. For eksempel, med dette alternativet er aktivert. filene du vil bli betraktet som duplikater:
     
@@ -23,6 +39,7 @@ duplicate_case_sensitive_name_tooltip =
     Når aktivert, vil du bare gruppere når de har nøyaktig samme navn, f.eks. Żołd <-> Żołd
     
     Deaktivering av en slik opsjon vil gi deg egne navn uten å sjekke om hver bokstav er like stort, f.eks. żoŁD <-> Żołd
+duplicate_mode_size_name_combo_box = Størrelse og navn
 duplicate_mode_name_combo_box = Navn
 duplicate_mode_size_combo_box = Størrelse
 duplicate_mode_hash_combo_box = Hash
@@ -203,6 +220,11 @@ popover_custom_case_sensitive_check_button = Skill store og små bokstaver
 popover_custom_all_in_group_label = Ikke velg alle poster i gruppen
 popover_custom_mode_unselect = Avvelg egendefinert
 popover_custom_mode_select = Velg egendefinert
+popover_sort_file_name = Filnavn
+popover_sort_folder_name = Mappenavn
+popover_sort_full_name = Fullt navn
+popover_sort_size = Størrelse
+popover_sort_selection = Utvalg
 popover_invalid_regex = Regex er ugyldig
 popover_valid_regex = Regex er gyldig
 # Bottom buttons
@@ -213,6 +235,7 @@ bottom_save_button = Save
 bottom_symlink_button = Symlink
 bottom_hardlink_button = Hardlink
 bottom_move_button = Flytt
+bottom_sort_button = Sorter
 bottom_search_button_tooltip = Starte søk
 bottom_select_button_tooltip = Velg oppføringer. Bare valgte filer/mapper kan bli behandlet senere.
 bottom_delete_button_tooltip = Slett valgte filer/mapper.
@@ -225,10 +248,16 @@ bottom_hardlink_button_tooltip =
     Opprette fastkoblinger.
     Virker bare når minst to resultater i en gruppe er valgt.
     Først er uendret og annet og senere er vanskelig knyttet til først.
+bottom_hardlink_button_not_available_tooltip =
+    Opprett faste koblinger.
+    Knappen er deaktivert, fordi faste koblinger ikke kan opprettes.
+    Faste koblinger fungerer bare med administratorrettigheter i Windows, så pass på at du kjører programmet som administrator.
+    Hvis programmet allerede fungerer med slike privilegier, sjekk om lignende problemer er observert på GitHub.
 bottom_move_button_tooltip =
     Flytter filer til valgt mappe.
     Den kopierer alle filer til mappen uten å lagre mappetreet.
     Når du prøver å flytte to filer med identisk navn til mappe, vil det andre feile og vise feil.
+bottom_sort_button_tooltip = Sorter filer/mapper etter valgt metode.
 bottom_show_errors_tooltip = Vis/Skjul bunntekstpanelet.
 bottom_show_upper_notebook_tooltip = Vis/Skjul øvre notebook panel.
 # Progress Window
@@ -252,6 +281,9 @@ header_about_button_tooltip = Åpner dialog med info om app.
 
 ## General
 
+settings_number_of_threads = Antall brukte tråder
+settings_number_of_threads_tooltip = Antall brukte tråder. 0 betyr at alle tilgjengelige tråder vil bli brukt.
+settings_label_restart = Start programmet på nytt for å bruke innstillingene!
 settings_ignore_other_filesystems = Ignorer andre filsystemer (bare Linux)
 settings_ignore_other_filesystems_tooltip =
     ignorerer filer som ikke er i samme filsystem som søk-kataloger.
@@ -373,8 +405,11 @@ progress_scanning_image = Hashing av { $file_checked }/{ $all_files } bilde
 progress_comparing_image_hashes = Sammenligner { $file_checked }/{ $all_files } bilde-hash
 progress_scanning_music_tags_end = Sammenligner tagger med { $file_checked }/{ $all_files } musikkfil
 progress_scanning_music_tags = Leser tagger på { $file_checked }/{ $all_files } musikkfil
+progress_scanning_music_content_end = Sammenligner fingeravtrykk på { $file_checked }/{ $all_files } musikkfil
+progress_scanning_music_content = Beregner fingeravtrykk på { $file_checked }/{ $all_files } musikkfil
 progress_scanning_empty_folders = Skanner { $folder_number } mappe
 progress_scanning_size = Skanner størrelse på { $file_number } fil
+progress_scanning_size_name = Skanning av navn og størrelse på { $file_number } fil
 progress_scanning_name = Skanning av navn på { $file_number } fil
 progress_analyzed_partial_hash = Analyserte delvis hash med { $file_checked }/{ $all_files } filer
 progress_analyzed_full_hash = Analyserte full hash med { $file_checked }/{ $all_files } filer

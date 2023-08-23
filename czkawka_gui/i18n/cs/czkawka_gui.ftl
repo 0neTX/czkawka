@@ -14,6 +14,22 @@ music_bitrate_checkbox = Přenosová rychlost
 music_genre_checkbox = Žánr
 music_length_checkbox = Délka
 music_comparison_checkbox = Přibližné srovnání
+music_checking_by_tags = Štítky
+music_checking_by_content = Obsah
+same_music_seconds_label = Minimální délka trvání druhého fragmentu
+same_music_similarity_label = Maximální rozdíl
+same_music_tooltip =
+    Vyhledávání podobných hudebních souborů podle jejich obsahu může být nakonfigurováno nastavením:
+    
+    - Minimální doba fragmentu, po které mohou být hudební soubory identifikovány jako podobné
+    - Maximální rozdíl mezi dvěma testovanými fragmenty
+    
+    Klíč k dobrým výsledkům je najít rozumné kombinace těchto parametrů, pro stanovení.
+    
+    Nastavení minimální doby na 5 s a maximální rozdíl na 1,0 bude hledat téměř stejné fragmenty v souborech.
+    Čas 20 s a maximální rozdíl 6,0 na druhé straně funguje dobře pro nalezení remixů/živých verzí atd.
+    
+    Ve výchozím nastavení je každý hudební soubor porovnáván mezi sebou a to může trvat dlouho při testování mnoha souborů, takže je obvykle lepší používat referenční složky a specifikovat, které soubory mají být vzájemně porovnány (se stejným množstvím souborů, porovnávání otisků prstů bude rychlejší alespoň 4x než bez referenčních složek).
 music_comparison_checkbox_tooltip =
     Vyhledá podobné hudební soubory pomocí AI, která používá strojové učení k odstranění závorek z fráze. Například, pokud je tato možnost povolena, příslušné soubory budou považovány za duplicitní soubory:
     
@@ -23,6 +39,7 @@ duplicate_case_sensitive_name_tooltip =
     Pokud je povoleno, skupiny pouze záznamy, pokud mají přesně stejný název, např.Żołd <-> Żołd
     
     Zakázání takové volby bude názvy skupin bez kontroly, zda je každé písmeno stejné velikosti, např. żoŁD <-> Żołd
+duplicate_mode_size_name_combo_box = Velikost a název
 duplicate_mode_name_combo_box = Název
 duplicate_mode_size_combo_box = Velikost
 duplicate_mode_hash_combo_box = Hash
@@ -203,6 +220,11 @@ popover_custom_case_sensitive_check_button = Rozlišit malá a velká písmena
 popover_custom_all_in_group_label = Nesbírat všechny záznamy ve skupině
 popover_custom_mode_unselect = Zrušit výběr vlastních
 popover_custom_mode_select = Vybrat vlastní
+popover_sort_file_name = Název souboru
+popover_sort_folder_name = Název adresáře
+popover_sort_full_name = Jméno a příjmení
+popover_sort_size = Velikost
+popover_sort_selection = Výběr
 popover_invalid_regex = Regex je neplatný
 popover_valid_regex = Regex je platný
 # Bottom buttons
@@ -213,6 +235,7 @@ bottom_save_button = Uložit
 bottom_symlink_button = Symlink
 bottom_hardlink_button = Hardlink
 bottom_move_button = Přesunout
+bottom_sort_button = Seřadit
 bottom_search_button_tooltip = Začít hledání
 bottom_select_button_tooltip = Vyberte záznamy. Pouze vybrané soubory/složky mohou být později zpracovány.
 bottom_delete_button_tooltip = Odstranit vybrané soubory/složky.
@@ -225,10 +248,16 @@ bottom_hardlink_button_tooltip =
     Vytvořit hardwarové odkazy.
     Funguje pouze tehdy, pokud jsou vybrány alespoň dva výsledky ve skupině.
     Nejprve je nezměněna a druhé a později jsou těžce propojeny s prvními.
+bottom_hardlink_button_not_available_tooltip =
+    Vytvořit hardwarové odkazy.
+    Tlačítko je zakázáno, protože hardwarové odkazy nelze vytvořit.
+    Hardlinky fungují pouze s oprávněními administrátora v systému Windows, tak se ujistěte, že používáte aplikaci jako administrátora.
+    Pokud aplikace s takovými oprávněními již funguje, podívejte se na podobné problémy na Githubu.
 bottom_move_button_tooltip =
     Přesune soubory do vybraného adresáře.
     Zkopíruje všechny soubory do adresáře bez uchování stromu adresáře.
     Při pokusu přesunout dva soubory se stejným názvem do složky, druhý selže a zobrazí chybu.
+bottom_sort_button_tooltip = Seřazuje soubory/složky podle zvolené metody.
 bottom_show_errors_tooltip = Zobrazit/skrýt spodní textový panel.
 bottom_show_upper_notebook_tooltip = Zobrazit/skrýt horní panel sešitu.
 # Progress Window
@@ -252,7 +281,10 @@ header_about_button_tooltip = Otevře dialog s informacemi o aplikaci.
 
 ## General
 
-settings_ignore_other_filesystems = Ignorovat další souborové systémy (pouze Linux)
+settings_number_of_threads = Počet použitých vláken
+settings_number_of_threads_tooltip = Počet použitých vláken, 0 znamená, že budou použita všechna dostupná vlákna.
+settings_label_restart = Pro použití nastavení je třeba restartovat aplikaci!
+settings_ignore_other_filesystems = Ignorovat ostatní souborové systémy (pouze Linux)
 settings_ignore_other_filesystems_tooltip =
     ignoruje soubory, které nejsou ve stejném souborovém systému jako prohledávané adresáře.
     
@@ -373,8 +405,11 @@ progress_scanning_image = Hashování { $file_checked }/{ $all_files } obrázku
 progress_comparing_image_hashes = Porovnávám { $file_checked }/{ $all_files } hash obrázků
 progress_scanning_music_tags_end = Porovnávání značek s { $file_checked }/{ $all_files } hudebním souborem
 progress_scanning_music_tags = Čtení tagů z { $file_checked }/{ $all_files } hudebního souboru
+progress_scanning_music_content_end = Porovnání otisku prstu v { $file_checked }/{ $all_files } hudebního souboru
+progress_scanning_music_content = Výpočet otisku prstu { $file_checked }/{ $all_files } hudebního souboru
 progress_scanning_empty_folders = Skenování { $folder_number } složky
 progress_scanning_size = Skenování velikosti { $file_number } souboru
+progress_scanning_size_name = Skenování jména a velikosti souboru { $file_number }
 progress_scanning_name = Skenování názvu souboru { $file_number }
 progress_analyzed_partial_hash = Analyzován částečný hash souborů { $file_checked }/{ $all_files }
 progress_analyzed_full_hash = Analyzováno úplné hash souborů { $file_checked }/{ $all_files }

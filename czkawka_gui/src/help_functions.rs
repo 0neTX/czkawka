@@ -1,11 +1,13 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::io::BufReader;
 use std::path::PathBuf;
 
 use gdk4::gdk_pixbuf::{InterpType, Pixbuf};
+use glib::signal::Inhibit;
 use glib::Error;
 use gtk4::prelude::*;
-use gtk4::{ListStore, TextView, TreeView, Widget};
+use gtk4::{ListStore, Scale, ScrollType, TextView, TreeView, Widget};
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, EncodableLayout};
 use once_cell::sync::OnceCell;
@@ -44,7 +46,7 @@ pub const KEY_SPACE: u32 = 65;
 // pub const KEY_HOME: u32 = 115;
 // pub const KEY_END: u32 = 110;
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum PopoverTypes {
     All,
     Size,
@@ -53,7 +55,7 @@ pub enum PopoverTypes {
     Date,
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
 pub enum BottomButtonsEnum {
     Search,
     Select,
@@ -63,6 +65,7 @@ pub enum BottomButtonsEnum {
     Hardlink,
     Move,
     Compare,
+    Sort,
 }
 
 pub enum Message {
@@ -79,11 +82,13 @@ pub enum Message {
     BadExtensions(BadExtensions),
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsDuplicates {
     // Columns for duplicate treeview
     ActivatableSelectButton = 0,
     SelectionButton,
     Size,
+    SizeAsBytes,
     Name,
     Path,
     Modification,
@@ -93,6 +98,7 @@ pub enum ColumnsDuplicates {
     TextColor,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsEmptyFolders {
     // Columns for empty folder treeview
     SelectionButton = 0,
@@ -102,17 +108,20 @@ pub enum ColumnsEmptyFolders {
     ModificationAsSecs,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsIncludedDirectory {
     // Columns for Included Directories in upper Notebook
     Path = 0,
     ReferenceButton,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsExcludedDirectory {
     // Columns for Excluded Directories in upper Notebook
     Path = 0,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsBigFiles {
     SelectionButton = 0,
     Size,
@@ -123,6 +132,7 @@ pub enum ColumnsBigFiles {
     ModificationAsSecs,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsEmptyFiles {
     SelectionButton = 0,
     Name,
@@ -131,6 +141,7 @@ pub enum ColumnsEmptyFiles {
     ModificationAsSecs,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsTemporaryFiles {
     SelectionButton = 0,
     Name,
@@ -139,6 +150,7 @@ pub enum ColumnsTemporaryFiles {
     ModificationAsSecs,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsSimilarImages {
     ActivatableSelectButton = 0,
     SelectionButton,
@@ -155,6 +167,7 @@ pub enum ColumnsSimilarImages {
     TextColor,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsSimilarVideos {
     ActivatableSelectButton = 0,
     SelectionButton,
@@ -169,6 +182,7 @@ pub enum ColumnsSimilarVideos {
     TextColor,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsSameMusic {
     ActivatableSelectButton = 0,
     SelectionButton,
@@ -190,6 +204,7 @@ pub enum ColumnsSameMusic {
     TextColor,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsInvalidSymlinks {
     SelectionButton = 0,
     Name,
@@ -200,6 +215,7 @@ pub enum ColumnsInvalidSymlinks {
     ModificationAsSecs,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsBrokenFiles {
     SelectionButton = 0,
     Name,
@@ -209,6 +225,7 @@ pub enum ColumnsBrokenFiles {
     ModificationAsSecs,
 }
 
+#[derive(Clone, Copy)]
 pub enum ColumnsBadExtensions {
     SelectionButton = 0,
     Name,
@@ -228,11 +245,8 @@ pub fn get_string_from_list_store(tree_view: &TreeView, column_full_path: i32, c
 
     let mut string_vector: Vec<String> = Vec::new();
 
-    let tree_iter = match list_store.iter_first() {
-        Some(t) => t,
-        None => {
-            return string_vector;
-        }
+    let Some(tree_iter) = list_store.iter_first() else {
+        return string_vector;
     };
     match column_selection {
         Some(column_selection) => loop {
@@ -252,12 +266,12 @@ pub fn get_string_from_list_store(tree_view: &TreeView, column_full_path: i32, c
     }
 }
 
-pub fn get_path_buf_from_vector_of_strings(vec_string: Vec<String>) -> Vec<PathBuf> {
+pub fn get_path_buf_from_vector_of_strings(vec_string: &[String]) -> Vec<PathBuf> {
     vec_string.iter().map(PathBuf::from).collect()
 }
 
 pub fn print_text_messages_to_text_view(text_messages: &Messages, text_view: &TextView) {
-    let mut messages: String = String::from("");
+    let mut messages: String = String::new();
     if !text_messages.messages.is_empty() {
         messages += format!("############### {}({}) ###############\n", flg!("text_view_messages"), text_messages.messages.len()).as_str();
     }
@@ -302,7 +316,7 @@ pub fn add_text_to_text_view(text_view: &TextView, string_to_append: &str) {
     if current_text.is_empty() {
         buffer.set_text(string_to_append);
     } else {
-        buffer.set_text(format!("{}\n{}", current_text, string_to_append).as_str());
+        buffer.set_text(format!("{current_text}\n{string_to_append}").as_str());
     }
 }
 
@@ -337,7 +351,7 @@ pub fn get_dialog_box_child(dialog: &gtk4::Dialog) -> gtk4::Box {
     dialog.child().unwrap().downcast::<gtk4::Box>().unwrap()
 }
 
-pub fn change_dimension_to_krotka(dimensions: String) -> (u64, u64) {
+pub fn change_dimension_to_krotka(dimensions: &str) -> (u64, u64) {
     #[allow(clippy::single_char_pattern)]
     let vec = dimensions.split::<&str>("x").collect::<Vec<_>>();
     assert_eq!(vec.len(), 2); // 400x400 - should only have two elements, if have more, then something is not good
@@ -364,14 +378,34 @@ pub fn get_notebook_enum_from_tree_view(tree_view: &TreeView) -> NotebookMainEnu
         }
     }
 }
+pub fn get_tree_view_name_from_notebook_enum(notebook_enum: NotebookMainEnum) -> &'static str {
+    match notebook_enum {
+        NotebookMainEnum::Duplicate => "tree_view_duplicate_finder",
+        NotebookMainEnum::EmptyDirectories => "tree_view_empty_folder_finder",
+        NotebookMainEnum::EmptyFiles => "tree_view_empty_files_finder",
+        NotebookMainEnum::Temporary => "tree_view_temporary_files_finder",
+        NotebookMainEnum::BigFiles => "tree_view_big_files_finder",
+        NotebookMainEnum::SimilarImages => "tree_view_similar_images_finder",
+        NotebookMainEnum::SimilarVideos => "tree_view_similar_videos_finder",
+        NotebookMainEnum::SameMusic => "tree_view_same_music_finder",
+        NotebookMainEnum::Symlinks => "tree_view_invalid_symlinks",
+        NotebookMainEnum::BrokenFiles => "tree_view_broken_files",
+        NotebookMainEnum::BadExtensions => "tree_view_bad_extensions",
+    }
+}
 
 pub fn get_notebook_upper_enum_from_tree_view(tree_view: &TreeView) -> NotebookUpperEnum {
     match (*tree_view).widget_name().to_string().as_str() {
         "tree_view_upper_included_directories" => NotebookUpperEnum::IncludedDirectories,
         "tree_view_upper_excluded_directories" => NotebookUpperEnum::ExcludedDirectories,
-        e => {
-            panic!("{}", e)
-        }
+        e => panic!("{}", e),
+    }
+}
+pub fn get_tree_view_name_from_notebook_upper_enum(notebook_upper_enum: NotebookUpperEnum) -> &'static str {
+    match notebook_upper_enum {
+        NotebookUpperEnum::IncludedDirectories => "tree_view_upper_included_directories",
+        NotebookUpperEnum::ExcludedDirectories => "tree_view_upper_excluded_directories",
+        _ => panic!(),
     }
 }
 
@@ -394,9 +428,8 @@ pub fn clean_invalid_headers(model: &ListStore, column_header: i32, column_path:
     if let Some(first_iter) = model.iter_first() {
         let mut vec_tree_path_to_delete: Vec<gtk4::TreePath> = Vec::new();
         let mut current_iter = first_iter;
-        if !model.get::<bool>(&current_iter, column_header) {
-            panic!("First deleted element, should be a header"); // First element should be header
-        };
+        // First element should be header
+        assert!(model.get::<bool>(&current_iter, column_header), "First deleted element, should be a header");
 
         let mut next_iter;
         let mut next_next_iter;
@@ -404,9 +437,8 @@ pub fn clean_invalid_headers(model: &ListStore, column_header: i32, column_path:
         // Empty means default check type
         if model.get::<String>(&current_iter, column_path).is_empty() {
             'main: loop {
-                if !model.get::<bool>(&current_iter, column_header) {
-                    panic!("First deleted element, should be a header"); // First element should be header
-                };
+                // First element should be header
+                assert!(model.get::<bool>(&current_iter, column_header), "First deleted element, should be a header");
 
                 next_iter = current_iter;
                 if !model.iter_next(&next_iter) {
@@ -457,9 +489,8 @@ pub fn clean_invalid_headers(model: &ListStore, column_header: i32, column_path:
         // Non empty means that header points at reference folder
         else {
             'reference: loop {
-                if !model.get::<bool>(&current_iter, column_header) {
-                    panic!("First deleted element, should be a header"); // First element should be header
-                };
+                // First element should be header
+                assert!(model.get::<bool>(&current_iter, column_header), "First deleted element, should be a header");
 
                 next_iter = current_iter;
                 if !model.iter_next(&next_iter) {
@@ -586,7 +617,7 @@ pub fn count_number_of_groups(tree_view: &TreeView, column_header: i32) -> u32 {
     number_of_selected_groups
 }
 
-pub fn resize_pixbuf_dimension(pixbuf: Pixbuf, requested_size: (i32, i32), interp_type: InterpType) -> Option<Pixbuf> {
+pub fn resize_pixbuf_dimension(pixbuf: &Pixbuf, requested_size: (i32, i32), interp_type: InterpType) -> Option<Pixbuf> {
     let current_ratio = pixbuf.width() as f32 / pixbuf.height() as f32;
     let mut new_size;
     match current_ratio.partial_cmp(&(requested_size.0 as f32 / requested_size.1 as f32)).unwrap() {
@@ -613,8 +644,8 @@ pub fn get_max_file_name(file_name: &str, max_length: usize) -> String {
         let start_characters = 10;
         let difference = characters_in_filename - max_length;
         let second_part_start = start_characters + difference;
-        let mut string_pre = "".to_string();
-        let mut string_after = "".to_string();
+        let mut string_pre = String::new();
+        let mut string_after = String::new();
 
         for (index, character) in file_name.chars().enumerate() {
             if index < start_characters {
@@ -636,9 +667,8 @@ pub fn get_custom_label_from_widget<P: IsA<Widget>>(item: &P) -> gtk4::Label {
     while let Some(widget) = widgets_to_check.pop() {
         if let Ok(label) = widget.clone().downcast::<gtk4::Label>() {
             return label;
-        } else {
-            widgets_to_check.extend(get_all_direct_children(&widget));
         }
+        widgets_to_check.extend(get_all_direct_children(&widget));
     }
     panic!("Button doesn't have proper custom label child");
 }
@@ -649,9 +679,8 @@ pub fn get_custom_image_from_widget<P: IsA<Widget>>(item: &P) -> gtk4::Image {
     while let Some(widget) = widgets_to_check.pop() {
         if let Ok(image) = widget.clone().downcast::<gtk4::Image>() {
             return image;
-        } else {
-            widgets_to_check.extend(get_all_direct_children(&widget));
         }
+        widgets_to_check.extend(get_all_direct_children(&widget));
     }
     panic!("Button doesn't have proper custom label child");
 }
@@ -668,7 +697,7 @@ pub fn debug_print_widget<P: IsA<Widget>>(item: &P) {
             widgets_to_check.push((next_free_number, current_number, widget));
             next_free_number += 1;
         }
-        println!("{}, {}, {:?} ", current_number, parent_number, widget);
+        println!("{current_number}, {parent_number}, {widget:?} ");
     }
 }
 
@@ -706,7 +735,7 @@ const TYPE_OF_INTERPOLATION: InterpType = InterpType::Tiles;
 
 pub fn set_icon_of_button<P: IsA<Widget>>(button: &P, data: &'static [u8]) {
     let image = get_custom_image_from_widget(&button.clone());
-    let pixbuf = Pixbuf::from_read(std::io::BufReader::new(data)).unwrap();
+    let pixbuf = Pixbuf::from_read(BufReader::new(data)).unwrap();
     let pixbuf = pixbuf.scale_simple(SIZE_OF_ICON, SIZE_OF_ICON, TYPE_OF_INTERPOLATION).unwrap();
     image.set_from_pixbuf(Some(&pixbuf));
 }
@@ -728,7 +757,7 @@ pub fn get_pixbuf_from_dynamic_image(dynamic_image: &DynamicImage) -> Result<Pix
 pub fn check_if_value_is_in_list_store(list_store: &ListStore, column: i32, value: &str) -> bool {
     if let Some(iter) = list_store.iter_first() {
         loop {
-            let list_store_value: String = list_store.get::<String>(&iter, column as i32);
+            let list_store_value: String = list_store.get::<String>(&iter, column);
 
             if value == list_store_value {
                 return true;
@@ -746,7 +775,7 @@ pub fn check_if_value_is_in_list_store(list_store: &ListStore, column: i32, valu
 pub fn check_if_list_store_column_have_all_same_values(list_store: &ListStore, column: i32, value: bool) -> bool {
     if let Some(iter) = list_store.iter_first() {
         loop {
-            let list_store_value: bool = list_store.get::<bool>(&iter, column as i32);
+            let list_store_value: bool = list_store.get::<bool>(&iter, column);
 
             if value != list_store_value {
                 return false;
@@ -761,20 +790,68 @@ pub fn check_if_list_store_column_have_all_same_values(list_store: &ListStore, c
     false
 }
 
+pub fn scale_set_min_max_values(scale: &Scale, minimum: f64, maximum: f64, current_value: f64, step: Option<f64>) {
+    scale.set_range(minimum, maximum);
+    scale.set_fill_level(maximum);
+    scale.set_value(current_value);
+    if let Some(step) = step {
+        scale.adjustment().set_step_increment(step);
+    }
+}
+
+pub fn scale_step_function(scale: &Scale, _scroll_type: ScrollType, value: f64) -> Inhibit {
+    scale.set_increments(1_f64, 1_f64);
+    scale.set_round_digits(0);
+    scale.set_fill_level(value.round());
+    Inhibit(false)
+}
+
 #[cfg(test)]
 mod test {
+    use glib::types::Type;
+    use glib::Value;
     use gtk4::prelude::*;
-    use gtk4::Orientation;
+    use gtk4::{Orientation, TreeView};
     use image::DynamicImage;
 
     use crate::help_functions::{
         change_dimension_to_krotka, check_if_list_store_column_have_all_same_values, check_if_value_is_in_list_store, get_all_boxes_from_widget, get_all_direct_children,
-        get_max_file_name, get_pixbuf_from_dynamic_image,
+        get_max_file_name, get_pixbuf_from_dynamic_image, get_string_from_list_store,
     };
 
     #[gtk4::test]
+    fn test_get_string_from_list_store() {
+        let columns_types: &[Type] = &[Type::STRING];
+        let list_store = gtk4::ListStore::new(columns_types);
+        let tree_view = TreeView::with_model(&list_store);
+
+        let values_to_add: &[(u32, &dyn ToValue)] = &[(0, &"test"), (0, &"test2"), (0, &"test3")];
+        for i in values_to_add {
+            list_store.set(&list_store.append(), &[*i]);
+        }
+        assert_eq!(
+            get_string_from_list_store(&tree_view, 0, None),
+            vec!["test".to_string(), "test2".to_string(), "test3".to_string()]
+        );
+
+        let columns_types: &[Type] = &[Type::BOOL, Type::STRING];
+        let list_store = gtk4::ListStore::new(columns_types);
+        let tree_view = TreeView::with_model(&list_store);
+
+        let values_to_add: &[&[(u32, &dyn ToValue)]] = &[
+            &[(0, &Into::<Value>::into(true)), (1, &Into::<Value>::into("test"))],
+            &[(0, &Into::<Value>::into(true)), (1, &Into::<Value>::into("test2"))],
+            &[(0, &Into::<Value>::into(false)), (1, &Into::<Value>::into("test3"))],
+        ];
+        for i in values_to_add {
+            list_store.set(&list_store.append(), i);
+        }
+        assert_eq!(get_string_from_list_store(&tree_view, 1, Some(0)), vec!["test".to_string(), "test2".to_string()]);
+    }
+
+    #[gtk4::test]
     fn test_check_if_list_store_column_have_all_same_values() {
-        let columns_types: &[glib::types::Type] = &[glib::types::Type::BOOL];
+        let columns_types: &[Type] = &[Type::BOOL];
         let list_store = gtk4::ListStore::new(columns_types);
 
         list_store.clear();
@@ -808,7 +885,7 @@ mod test {
 
     #[gtk4::test]
     fn test_check_if_value_is_in_list_store() {
-        let columns_types: &[glib::types::Type] = &[glib::types::Type::STRING];
+        let columns_types: &[Type] = &[Type::STRING];
         let list_store = gtk4::ListStore::new(columns_types);
         let values_to_add: &[(u32, &dyn ToValue)] = &[(0, &"Koczkodan"), (0, &"Kachir")];
         for i in values_to_add {
@@ -818,7 +895,7 @@ mod test {
         assert!(check_if_value_is_in_list_store(&list_store, 0, "Kachir"));
         assert!(!check_if_value_is_in_list_store(&list_store, 0, "Koczkodan2"));
 
-        let columns_types: &[glib::types::Type] = &[glib::types::Type::STRING, glib::types::Type::STRING];
+        let columns_types: &[Type] = &[Type::STRING, Type::STRING];
         let list_store = gtk4::ListStore::new(columns_types);
         let values_to_add: &[&[(u32, &dyn ToValue)]] = &[&[(0, &"Koczkodan"), (1, &"Krakus")], &[(0, &"Kachir"), (1, &"Wodnica")]];
         for i in values_to_add {
@@ -864,8 +941,8 @@ mod test {
 
     #[test]
     fn test_change_dimension_to_krotka() {
-        assert_eq!(change_dimension_to_krotka("50x50".to_string()), (50, 50));
-        assert_eq!(change_dimension_to_krotka("6000x6000".to_string()), (6000, 6000));
+        assert_eq!(change_dimension_to_krotka("50x50"), (50, 50));
+        assert_eq!(change_dimension_to_krotka("6000x6000"), (6000, 6000));
     }
 
     #[gtk4::test]

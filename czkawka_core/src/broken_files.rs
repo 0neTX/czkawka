@@ -1,39 +1,34 @@
 use std::collections::BTreeMap;
-use std::fs::{File, Metadata};
+use std::fs::{DirEntry, File, Metadata};
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::{fs, mem, panic, thread};
+
+use std::{fs, mem, panic};
 
 use crossbeam_channel::Receiver;
+use futures::channel::mpsc::UnboundedSender;
+use pdf::file::FileOptions;
+use pdf::object::ParseOptions;
 use pdf::PdfError;
 use pdf::PdfError::Try;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::common::{create_crash_message, open_cache_folder, Common, LOOP_DURATION, PDF_FILES_EXTENSIONS};
-use crate::common::{AUDIO_FILES_EXTENSIONS, IMAGE_RS_BROKEN_FILES_EXTENSIONS, ZIP_FILES_EXTENSIONS};
+use crate::common::{
+    check_folder_children, create_crash_message, open_cache_folder, prepare_thread_handler_common, send_info_and_wait_for_ending_all_threads, AUDIO_FILES_EXTENSIONS,
+    IMAGE_RS_BROKEN_FILES_EXTENSIONS, PDF_FILES_EXTENSIONS, ZIP_FILES_EXTENSIONS,
+};
+use crate::common_dir_traversal::{common_get_entry_data_metadata, common_read_dir, get_lowercase_name, get_modified_time, CheckingMethod, ProgressData, ToolType};
 use crate::common_directory::Directories;
 use crate::common_extensions::Extensions;
 use crate::common_items::ExcludedItems;
 use crate::common_messages::Messages;
 use crate::common_traits::*;
-use crate::flc;
-use crate::localizer_core::generate_translation_hashmap;
 
-#[derive(Debug)]
-pub struct ProgressData {
-    pub current_stage: u8,
-    pub max_stage: u8,
-    pub files_checked: usize,
-    pub files_to_check: usize,
-}
-
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Copy)]
 pub enum DeleteMethod {
     None,
     Delete,
@@ -58,6 +53,7 @@ pub enum TypeOfFile {
 }
 
 bitflags! {
+    #[derive(PartialEq, Copy, Clone)]
     pub struct CheckedTypes : u32 {
         const NONE = 0;
 
@@ -75,12 +71,14 @@ pub struct Info {
 }
 
 impl Info {
+    #[must_use]
     pub fn new() -> Self {
         Default::default()
     }
 }
 
 pub struct BrokenFiles {
+    tool_type: ToolType,
     text_messages: Messages,
     information: Info,
     files_to_check: BTreeMap<String, FileEntry>,
@@ -93,13 +91,16 @@ pub struct BrokenFiles {
     stopped_search: bool,
     checked_types: CheckedTypes,
     use_cache: bool,
-    delete_outdated_cache: bool, // TODO add this to GUI
+    // TODO add this to GUI
+    delete_outdated_cache: bool,
     save_also_as_json: bool,
 }
 
 impl BrokenFiles {
+    #[must_use]
     pub fn new() -> Self {
         Self {
+            tool_type: ToolType::BrokenFiles,
             text_messages: Messages::new(),
             information: Info::new(),
             recursive_search: true,
@@ -117,7 +118,7 @@ impl BrokenFiles {
         }
     }
 
-    pub fn find_broken_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&futures::channel::mpsc::UnboundedSender<ProgressData>>) {
+    pub fn find_broken_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&UnboundedSender<ProgressData>>) {
         self.directories.optimize_directories(self.recursive_search, &mut self.text_messages);
         if !self.check_files(stop_receiver, progress_sender) {
             self.stopped_search = true;
@@ -131,10 +132,12 @@ impl BrokenFiles {
         self.debug_print();
     }
 
+    #[must_use]
     pub fn get_stopped_search(&self) -> bool {
         self.stopped_search
     }
 
+    #[must_use]
     pub const fn get_broken_files(&self) -> &Vec<FileEntry> {
         &self.broken_files
     }
@@ -143,10 +146,12 @@ impl BrokenFiles {
         self.checked_types = checked_types;
     }
 
+    #[must_use]
     pub const fn get_text_messages(&self) -> &Messages {
         &self.text_messages
     }
 
+    #[must_use]
     pub const fn get_information(&self) -> &Info {
         &self.information
     }
@@ -189,8 +194,7 @@ impl BrokenFiles {
         self.excluded_items.set_excluded_items(excluded_items, &mut self.text_messages);
     }
 
-    fn check_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&futures::channel::mpsc::UnboundedSender<ProgressData>>) -> bool {
-        let start_time: SystemTime = SystemTime::now();
+    fn check_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&UnboundedSender<ProgressData>>) -> bool {
         let mut folders_to_check: Vec<PathBuf> = Vec::with_capacity(1024 * 2); // This should be small enough too not see to big difference and big enough to store most of paths without needing to resize vector
 
         // Add root folders for finding
@@ -198,39 +202,12 @@ impl BrokenFiles {
             folders_to_check.push(id.clone());
         }
 
-        //// PROGRESS THREAD START
-        let progress_thread_run = Arc::new(AtomicBool::new(true));
-
-        let atomic_file_counter = Arc::new(AtomicUsize::new(0));
-
-        let progress_thread_handle = if let Some(progress_sender) = progress_sender {
-            let progress_send = progress_sender.clone();
-            let progress_thread_run = progress_thread_run.clone();
-            let atomic_file_counter = atomic_file_counter.clone();
-            thread::spawn(move || loop {
-                progress_send
-                    .unbounded_send(ProgressData {
-                        current_stage: 0,
-                        max_stage: 1,
-                        files_checked: atomic_file_counter.load(Ordering::Relaxed) as usize,
-                        files_to_check: 0,
-                    })
-                    .unwrap();
-                if !progress_thread_run.load(Ordering::Relaxed) {
-                    break;
-                }
-                sleep(Duration::from_millis(LOOP_DURATION as u64));
-            })
-        } else {
-            thread::spawn(|| {})
-        };
-        //// PROGRESS THREAD END
+        let (progress_thread_handle, progress_thread_run, atomic_counter, _check_was_stopped) =
+            prepare_thread_handler_common(progress_sender, 0, 1, 0, CheckingMethod::None, self.tool_type);
 
         while !folders_to_check.is_empty() {
             if stop_receiver.is_some() && stop_receiver.unwrap().try_recv().is_ok() {
-                // End thread which send info to gui
-                progress_thread_run.store(false, Ordering::Relaxed);
-                progress_thread_handle.join().unwrap();
+                send_info_and_wait_for_ending_all_threads(&progress_thread_run, progress_thread_handle);
                 return false;
             }
 
@@ -240,124 +217,31 @@ impl BrokenFiles {
                     let mut dir_result = vec![];
                     let mut warnings = vec![];
                     let mut fe_result = vec![];
-                    // Read current dir childrens
-                    let read_dir = match fs::read_dir(&current_folder) {
-                        Ok(t) => t,
-                        Err(e) => {
-                            warnings.push(flc!(
-                                "core_cannot_open_dir",
-                                generate_translation_hashmap(vec![("dir", current_folder.display().to_string()), ("reason", e.to_string())])
-                            ));
-                            return (dir_result, warnings, fe_result);
-                        }
+
+                    let Some(read_dir) = common_read_dir(current_folder, &mut warnings) else {
+                        return (dir_result, warnings, fe_result);
                     };
 
                     // Check every sub folder/file/link etc.
-                    'dir: for entry in read_dir {
-                        let entry_data = match entry {
-                            Ok(t) => t,
-                            Err(e) => {
-                                warnings.push(flc!(
-                                    "core_cannot_read_entry_dir",
-                                    generate_translation_hashmap(vec![("dir", current_folder.display().to_string()), ("reason", e.to_string())])
-                                ));
-                                continue 'dir;
-                            }
+                    for entry in read_dir {
+                        let Some((entry_data, metadata)) = common_get_entry_data_metadata(&entry, &mut warnings, current_folder) else {
+                            continue;
                         };
-                        let metadata: Metadata = match entry_data.metadata() {
-                            Ok(t) => t,
-                            Err(e) => {
-                                warnings.push(flc!(
-                                    "core_cannot_read_metadata_dir",
-                                    generate_translation_hashmap(vec![("dir", current_folder.display().to_string()), ("reason", e.to_string())])
-                                ));
-                                continue 'dir;
-                            }
-                        };
+
                         if metadata.is_dir() {
-                            if !self.recursive_search {
-                                continue 'dir;
-                            }
-
-                            let next_folder = current_folder.join(entry_data.file_name());
-                            if self.directories.is_excluded(&next_folder) {
-                                continue 'dir;
-                            }
-
-                            if self.excluded_items.is_excluded(&next_folder) {
-                                continue 'dir;
-                            }
-
-                            #[cfg(target_family = "unix")]
-                            if self.directories.exclude_other_filesystems() {
-                                match self.directories.is_on_other_filesystems(&next_folder) {
-                                    Ok(true) => continue 'dir,
-                                    Err(e) => warnings.push(e.to_string()),
-                                    _ => (),
-                                }
-                            }
-
-                            dir_result.push(next_folder);
+                            check_folder_children(
+                                &mut dir_result,
+                                &mut warnings,
+                                current_folder,
+                                entry_data,
+                                self.recursive_search,
+                                &self.directories,
+                                &self.excluded_items,
+                            );
                         } else if metadata.is_file() {
-                            atomic_file_counter.fetch_add(1, Ordering::Relaxed);
-
-                            let file_name_lowercase: String = match entry_data.file_name().into_string() {
-                                Ok(t) => t,
-                                Err(_inspected) => {
-                                    warnings.push(flc!(
-                                        "core_file_not_utf8_name",
-                                        generate_translation_hashmap(vec![("name", entry_data.path().display().to_string())])
-                                    ));
-                                    continue 'dir;
-                                }
+                            if let Some(file_entry) = self.get_file_entry(&metadata, &atomic_counter, entry_data, &mut warnings, current_folder) {
+                                fe_result.push((file_entry.path.to_string_lossy().to_string(), file_entry));
                             }
-                            .to_lowercase();
-
-                            if !self.allowed_extensions.matches_filename(&file_name_lowercase) {
-                                continue 'dir;
-                            }
-
-                            let type_of_file = check_extension_availability(&file_name_lowercase);
-                            if type_of_file == TypeOfFile::Unknown {
-                                continue 'dir;
-                            }
-
-                            if !check_extension_allowed(&type_of_file, &self.checked_types) {
-                                continue 'dir;
-                            }
-
-                            let current_file_name = current_folder.join(entry_data.file_name());
-                            if self.excluded_items.is_excluded(&current_file_name) {
-                                continue 'dir;
-                            }
-
-                            let fe: FileEntry = FileEntry {
-                                path: current_file_name.clone(),
-                                modified_date: match metadata.modified() {
-                                    Ok(t) => match t.duration_since(UNIX_EPOCH) {
-                                        Ok(d) => d.as_secs(),
-                                        Err(_inspected) => {
-                                            warnings.push(flc!(
-                                                "core_file_modified_before_epoch",
-                                                generate_translation_hashmap(vec![("name", current_file_name.display().to_string())])
-                                            ));
-                                            0
-                                        }
-                                    },
-                                    Err(e) => {
-                                        warnings.push(flc!(
-                                            "core_file_no_modification_date",
-                                            generate_translation_hashmap(vec![("name", current_file_name.display().to_string()), ("reason", e.to_string())])
-                                        ));
-                                        0
-                                    }
-                                },
-                                size: metadata.len(),
-                                type_of_file,
-                                error_string: "".to_string(),
-                            };
-
-                            fe_result.push((current_file_name.to_string_lossy().to_string(), fe));
                         }
                     }
                     (dir_result, warnings, fe_result)
@@ -377,22 +261,157 @@ impl BrokenFiles {
             }
         }
 
-        // End thread which send info to gui
-        progress_thread_run.store(false, Ordering::Relaxed);
-        progress_thread_handle.join().unwrap();
+        send_info_and_wait_for_ending_all_threads(&progress_thread_run, progress_thread_handle);
 
-        Common::print_time(start_time, SystemTime::now(), "check_files".to_string());
         true
     }
-    fn look_for_broken_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&futures::channel::mpsc::UnboundedSender<ProgressData>>) -> bool {
-        let system_time = SystemTime::now();
+    fn get_file_entry(
+        &self,
+        metadata: &Metadata,
+        atomic_counter: &Arc<AtomicUsize>,
+        entry_data: &DirEntry,
+        warnings: &mut Vec<String>,
+        current_folder: &Path,
+    ) -> Option<FileEntry> {
+        atomic_counter.fetch_add(1, Ordering::Relaxed);
 
+        let Some(file_name_lowercase) = get_lowercase_name(entry_data, warnings) else {
+            return None;
+        };
+
+        if !self.allowed_extensions.matches_filename(&file_name_lowercase) {
+            return None;
+        }
+
+        let type_of_file = check_extension_availability(&file_name_lowercase);
+        if type_of_file == TypeOfFile::Unknown {
+            return None;
+        }
+
+        if !check_extension_allowed(&type_of_file, &self.checked_types) {
+            return None;
+        }
+
+        let current_file_name = current_folder.join(entry_data.file_name());
+        if self.excluded_items.is_excluded(&current_file_name) {
+            return None;
+        }
+
+        let fe: FileEntry = FileEntry {
+            path: current_file_name.clone(),
+            modified_date: get_modified_time(metadata, warnings, &current_file_name, false),
+            size: metadata.len(),
+            type_of_file,
+            error_string: String::new(),
+        };
+        Some(fe)
+    }
+
+    fn check_broken_image(&self, mut file_entry: FileEntry) -> Option<FileEntry> {
+        let mut file_entry_clone = file_entry.clone();
+
+        let result = panic::catch_unwind(|| {
+            if let Err(e) = image::open(&file_entry.path) {
+                let error_string = e.to_string();
+                // This error is a problem with image library, remove check when https://github.com/image-rs/jpeg-decoder/issues/130 will be fixed
+                if error_string.contains("spectral selection is not allowed in non-progressive scan") {
+                    return None;
+                }
+                file_entry.error_string = error_string;
+            }
+            Some(file_entry)
+        });
+
+        // If image crashed during opening, needs to be printed info about crashes thing
+        if let Ok(image_result) = result {
+            image_result
+        } else {
+            let message = create_crash_message("Image-rs", &file_entry_clone.path.to_string_lossy(), "https://github.com/Serial-ATA/lofty-rs");
+            println!("{message}");
+            file_entry_clone.error_string = message;
+            Some(file_entry_clone)
+        }
+    }
+    fn check_broken_zip(&self, mut file_entry: FileEntry) -> Option<FileEntry> {
+        match File::open(&file_entry.path) {
+            Ok(file) => {
+                if let Err(e) = zip::ZipArchive::new(file) {
+                    file_entry.error_string = e.to_string();
+                }
+                Some(file_entry)
+            }
+            Err(_inspected) => None,
+        }
+    }
+    fn check_broken_audio(&self, mut file_entry: FileEntry) -> Option<FileEntry> {
+        match File::open(&file_entry.path) {
+            Ok(file) => {
+                let mut file_entry_clone = file_entry.clone();
+
+                let result = panic::catch_unwind(|| {
+                    if let Err(e) = audio_checker::parse_audio_file(file) {
+                        file_entry.error_string = e.to_string();
+                    }
+                    Some(file_entry)
+                });
+
+                if let Ok(audio_result) = result {
+                    audio_result
+                } else {
+                    let message = create_crash_message("Symphonia", &file_entry_clone.path.to_string_lossy(), "https://github.com/pdeljanov/Symphonia");
+                    println!("{message}");
+                    file_entry_clone.error_string = message;
+                    Some(file_entry_clone)
+                }
+            }
+            Err(_inspected) => None,
+        }
+    }
+    fn check_broken_pdf(&self, mut file_entry: FileEntry) -> Option<FileEntry> {
+        let parser_options = ParseOptions::tolerant(); // Only show as broken files with really big bugs
+
+        let mut file_entry_clone = file_entry.clone();
+        let result = panic::catch_unwind(|| {
+            match FileOptions::cached().parse_options(parser_options).open(&file_entry.path) {
+                Ok(file) => {
+                    for idx in 0..file.num_pages() {
+                        if let Err(e) = file.get_page(idx) {
+                            let err = validate_pdf_error(&mut file_entry, e);
+                            if let PdfError::InvalidPassword = err {
+                                return None;
+                            }
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    if let PdfError::Io { .. } = e {
+                        return None;
+                    }
+                    let err = validate_pdf_error(&mut file_entry, e);
+                    if let PdfError::InvalidPassword = err {
+                        return None;
+                    }
+                }
+            }
+            Some(file_entry)
+        });
+        if let Ok(pdf_result) = result {
+            pdf_result
+        } else {
+            let message = create_crash_message("PDF-rs", &file_entry_clone.path.to_string_lossy(), "https://github.com/pdf-rs/pdf");
+            println!("{message}");
+            file_entry_clone.error_string = message;
+            Some(file_entry_clone)
+        }
+    }
+
+    fn look_for_broken_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&UnboundedSender<ProgressData>>) -> bool {
         let loaded_hash_map;
 
         let mut records_already_cached: BTreeMap<String, FileEntry> = Default::default();
         let mut non_cached_files_to_check: BTreeMap<String, FileEntry> = Default::default();
-        let mut files_to_check = Default::default();
-        mem::swap(&mut self.files_to_check, &mut files_to_check);
+        let files_to_check = mem::take(&mut self.files_to_check);
 
         if self.use_cache {
             loaded_hash_map = match load_cache_from_file(&mut self.text_messages, self.delete_outdated_cache) {
@@ -422,152 +441,35 @@ impl BrokenFiles {
             non_cached_files_to_check = files_to_check;
         }
 
-        //// PROGRESS THREAD START
-        let progress_thread_run = Arc::new(AtomicBool::new(true));
-        let atomic_file_counter = Arc::new(AtomicUsize::new(0));
+        let (progress_thread_handle, progress_thread_run, atomic_counter, _check_was_stopped) =
+            prepare_thread_handler_common(progress_sender, 1, 1, non_cached_files_to_check.len(), CheckingMethod::None, self.tool_type);
 
-        let progress_thread_handle = if let Some(progress_sender) = progress_sender {
-            let progress_send = progress_sender.clone();
-            let progress_thread_run = progress_thread_run.clone();
-            let atomic_file_counter = atomic_file_counter.clone();
-            let files_to_check = non_cached_files_to_check.len();
-            thread::spawn(move || loop {
-                progress_send
-                    .unbounded_send(ProgressData {
-                        current_stage: 1,
-                        max_stage: 1,
-                        files_checked: atomic_file_counter.load(Ordering::Relaxed) as usize,
-                        files_to_check,
-                    })
-                    .unwrap();
-                if !progress_thread_run.load(Ordering::Relaxed) {
-                    break;
-                }
-                sleep(Duration::from_millis(LOOP_DURATION as u64));
-            })
-        } else {
-            thread::spawn(|| {})
-        };
-        //// PROGRESS THREAD END
         let mut vec_file_entry: Vec<FileEntry> = non_cached_files_to_check
             .into_par_iter()
-            .map(|(_, mut file_entry)| {
-                atomic_file_counter.fetch_add(1, Ordering::Relaxed);
+            .map(|(_, file_entry)| {
+                atomic_counter.fetch_add(1, Ordering::Relaxed);
                 if stop_receiver.is_some() && stop_receiver.unwrap().try_recv().is_ok() {
                     return None;
                 }
 
                 match file_entry.type_of_file {
-                    TypeOfFile::Image => {
-                        let mut file_entry_clone = file_entry.clone();
-
-                        let result = panic::catch_unwind(|| {
-                            if let Err(e) = image::open(&file_entry.path) {
-                                let error_string = e.to_string();
-                                // This error is a problem with image library, remove check when https://github.com/image-rs/jpeg-decoder/issues/130 will be fixed
-                                if error_string.contains("spectral selection is not allowed in non-progressive scan") {
-                                    return Some(None);
-                                }
-                                file_entry.error_string = error_string;
-                            }
-                            Some(Some(file_entry))
-                        });
-
-                        // If image crashed during opening, needs to be printed info about crashes thing
-                        if let Ok(image_result) = result {
-                            image_result
-                        } else {
-                            let message = create_crash_message("Image-rs", &file_entry_clone.path.to_string_lossy(), "https://github.com/Serial-ATA/lofty-rs");
-                            println!("{message}");
-                            file_entry_clone.error_string = message;
-                            Some(Some(file_entry_clone))
-                        }
-                    }
-                    TypeOfFile::ArchiveZip => match File::open(&file_entry.path) {
-                        Ok(file) => {
-                            if let Err(e) = zip::ZipArchive::new(file) {
-                                file_entry.error_string = e.to_string();
-                            }
-                            Some(Some(file_entry))
-                        }
-                        Err(_inspected) => Some(None),
-                    },
-                    TypeOfFile::Audio => match File::open(&file_entry.path) {
-                        Ok(file) => {
-                            let mut file_entry_clone = file_entry.clone();
-
-                            let result = panic::catch_unwind(|| {
-                                if let Err(e) = audio_checker::parse_audio_file(file) {
-                                    file_entry.error_string = e.to_string();
-                                }
-                                Some(Some(file_entry))
-                            });
-
-                            if let Ok(audio_result) = result {
-                                audio_result
-                            } else {
-                                let message = create_crash_message("Symphonia", &file_entry_clone.path.to_string_lossy(), "https://github.com/pdeljanov/Symphonia");
-                                println!("{message}");
-                                file_entry_clone.error_string = message;
-                                Some(Some(file_entry_clone))
-                            }
-                        }
-                        Err(_inspected) => Some(None),
-                    },
-
-                    TypeOfFile::PDF => {
-                        match fs::read(&file_entry.path) {
-                            Ok(content) => {
-                                // Will be available in pdf > 0.7.2
-                                // let parser_options = ParseOptions {
-                                //     allow_error_in_option: true,
-                                //     allow_xref_error: true,
-                                //     allow_invalid_ops: true,
-                                //     allow_missing_endobj: true,
-                                // };
-                                // if let Err(e) = pdf::file::File::from_data_with_options(content, parser_options) {
-
-                                let mut file_entry_clone = file_entry.clone();
-                                let result = panic::catch_unwind(|| {
-                                    if let Err(e) = pdf::file::File::from_data(content) {
-                                        file_entry.error_string = e.to_string();
-                                        let error = unpack_pdf_error(e);
-                                        if let PdfError::InvalidPassword = error {
-                                            return Some(None);
-                                        }
-                                    }
-                                    Some(Some(file_entry))
-                                });
-                                if let Ok(pdf_result) = result {
-                                    pdf_result
-                                } else {
-                                    let message = create_crash_message("PDF-rs", &file_entry_clone.path.to_string_lossy(), "https://github.com/pdf-rs/pdf");
-                                    println!("{message}");
-                                    file_entry_clone.error_string = message;
-                                    Some(Some(file_entry_clone))
-                                }
-                            }
-                            Err(_inspected) => Some(None),
-                        }
-                    }
-
+                    TypeOfFile::Image => Some(self.check_broken_image(file_entry)),
+                    TypeOfFile::ArchiveZip => Some(self.check_broken_zip(file_entry)),
+                    TypeOfFile::Audio => Some(self.check_broken_audio(file_entry)),
+                    TypeOfFile::PDF => Some(self.check_broken_pdf(file_entry)),
                     // This means that cache read invalid value because maybe cache comes from different czkawka version
                     TypeOfFile::Unknown => Some(None),
                 }
             })
             .while_some()
-            .filter(|file_entry| file_entry.is_some())
-            .map(|file_entry| file_entry.unwrap())
+            .filter(Option::is_some)
+            .map(Option::unwrap)
             .collect::<Vec<FileEntry>>();
 
-        // End thread which send info to gui
-        progress_thread_run.store(false, Ordering::Relaxed);
-        progress_thread_handle.join().unwrap();
+        send_info_and_wait_for_ending_all_threads(&progress_thread_run, progress_thread_handle);
 
         // Just connect loaded results with already calculated
-        for (_name, file_entry) in records_already_cached {
-            vec_file_entry.push(file_entry.clone());
-        }
+        vec_file_entry.extend(records_already_cached.into_values());
 
         if self.use_cache {
             // Must save all results to file, old loaded from file with all currently counted results
@@ -589,20 +491,17 @@ impl BrokenFiles {
 
         self.information.number_of_broken_files = self.broken_files.len();
 
-        Common::print_time(system_time, SystemTime::now(), "sort_images - reading data from files in parallel".to_string());
-
         // Clean unused data
         self.files_to_check = Default::default();
 
         true
     }
+
     /// Function to delete files, from filed Vector
     fn delete_files(&mut self) {
-        let start_time: SystemTime = SystemTime::now();
-
         match self.delete_method {
             DeleteMethod::Delete => {
-                for file_entry in self.broken_files.iter() {
+                for file_entry in &self.broken_files {
                     if fs::remove_file(&file_entry.path).is_err() {
                         self.text_messages.warnings.push(file_entry.path.display().to_string());
                     }
@@ -612,8 +511,6 @@ impl BrokenFiles {
                 //Just do nothing
             }
         }
-
-        Common::print_time(start_time, SystemTime::now(), "delete_files".to_string());
     }
 }
 
@@ -654,7 +551,6 @@ impl DebugPrint for BrokenFiles {
 
 impl SaveResults for BrokenFiles {
     fn save_results_to_file(&mut self, file_name: &str) -> bool {
-        let start_time: SystemTime = SystemTime::now();
         let file_name: String = match file_name {
             "" => "results.txt".to_string(),
             k => k.to_string(),
@@ -663,7 +559,7 @@ impl SaveResults for BrokenFiles {
         let file_handler = match File::create(&file_name) {
             Ok(t) => t,
             Err(e) => {
-                self.text_messages.errors.push(format!("Failed to create file {}, reason {}", file_name, e));
+                self.text_messages.errors.push(format!("Failed to create file {file_name}, reason {e}"));
                 return false;
             }
         };
@@ -674,19 +570,19 @@ impl SaveResults for BrokenFiles {
             "Results of searching {:?} with excluded directories {:?} and excluded items {:?}",
             self.directories.included_directories, self.directories.excluded_directories, self.excluded_items.items
         ) {
-            self.text_messages.errors.push(format!("Failed to save results to file {}, reason {}", file_name, e));
+            self.text_messages.errors.push(format!("Failed to save results to file {file_name}, reason {e}"));
             return false;
         }
 
         if !self.broken_files.is_empty() {
             writeln!(writer, "Found {} broken files.", self.information.number_of_broken_files).unwrap();
-            for file_entry in self.broken_files.iter() {
+            for file_entry in &self.broken_files {
                 writeln!(writer, "{} - {}", file_entry.path.display(), file_entry.error_string).unwrap();
             }
         } else {
             write!(writer, "Not found any broken files.").unwrap();
         }
-        Common::print_time(start_time, SystemTime::now(), "save_results_to_file".to_string());
+
         true
     }
 }
@@ -695,13 +591,10 @@ impl PrintResults for BrokenFiles {
     /// Print information's about duplicated entries
     /// Only needed for CLI
     fn print_results(&self) {
-        let start_time: SystemTime = SystemTime::now();
         println!("Found {} broken files.\n", self.information.number_of_broken_files);
-        for file_entry in self.broken_files.iter() {
+        for file_entry in &self.broken_files {
             println!("{} - {}", file_entry.path.display(), file_entry.error_string);
         }
-
-        Common::print_time(start_time, SystemTime::now(), "print_entries".to_string());
     }
 }
 
@@ -809,7 +702,7 @@ fn unpack_pdf_error(e: PdfError) -> PdfError {
         file: _,
         line: _,
         column: _,
-        // context: _,
+        context: _,
         source,
     } = e
     {
@@ -817,4 +710,17 @@ fn unpack_pdf_error(e: PdfError) -> PdfError {
     } else {
         e
     }
+}
+
+fn validate_pdf_error(file_entry: &mut FileEntry, e: PdfError) -> PdfError {
+    let mut error_string = e.to_string();
+    // Workaround for strange error message https://github.com/qarmin/czkawka/issues/898
+    if error_string.starts_with("Try at") {
+        if let Some(start_index) = error_string.find("/pdf-") {
+            error_string = format!("Decoding error in pdf-rs library - {}", &error_string[start_index..]);
+        }
+    }
+
+    file_entry.error_string = error_string;
+    unpack_pdf_error(e)
 }

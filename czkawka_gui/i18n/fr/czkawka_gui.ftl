@@ -14,8 +14,24 @@ music_bitrate_checkbox = Débit binaire
 music_genre_checkbox = Genre
 music_length_checkbox = Longueur
 music_comparison_checkbox = Comparaison approximative
+music_checking_by_tags = Tags
+music_checking_by_content = Contenus
+same_music_seconds_label = Durée minimale de seconde de fragment
+same_music_similarity_label = Différence maximale
+same_music_tooltip =
+    La recherche de fichiers de musique similaires par son contenu peut être configurée par la configuration :
+    
+    - Le temps de fragment minimum après lequel les fichiers musicaux peuvent être identifiés comme similaires
+    - La différence maximale entre deux fragments testés
+    
+    La clé de bons résultats est de trouver des combinaisons sensées de ces paramètres, pour ce qui est fourni.
+    
+    En fixant le temps minimum à 5 secondes et la différence maximale à 1.0, cherchera des fragments presque identiques dans les fichiers.
+    Un temps de 20 secondes et une différence maximale de 6.0, d'autre part, fonctionne bien pour trouver des remixes/versions live, etc.
+    
+    Par défaut, chaque fichier de musique est comparé l'un à l'autre et cela peut prendre beaucoup de temps lors du test de plusieurs fichiers, donc il est généralement préférable d'utiliser des dossiers de référence et de spécifier quels fichiers doivent être comparés les uns avec les autres (avec la même quantité de fichiers, la comparaison des empreintes digitales sera plus rapide au moins 4x que sans dossier de référence).
 music_comparison_checkbox_tooltip =
-    Il recherche des fichiers de musique similaires à l'aide d'une intelligence artificielle, qui utilise le machine learning pour supprimer les parenthèses d'une phrase, par exemple avec cette option activée, les fichiers en question seront considérés comme des doublons :
+    Il recherche des fichiers de musique similaires à l’aide d’une intelligence artificielle, qui utilise le machine learning pour supprimer les parenthèses d’une phrase, par exemple avec cette option activée, les fichiers en question seront considérés comme des doublons :
     
     Świędziżłób     ---     Świędziżłób (Remix Lato 2021)
 duplicate_case_sensitive_name = Sensible à la casse
@@ -23,6 +39,7 @@ duplicate_case_sensitive_name_tooltip =
     Lorsqu'il est activé, ne grouper que les enregistrements quand ils ont exactement le même nom (p. ex. Żołd <-> Żołd
     
     Désactiver cette option va regrouper les noms sans vérifier si chaque lettre a la même taille, par exemple żoŁD <-> Żołd
+duplicate_mode_size_name_combo_box = Taille et nom
 duplicate_mode_name_combo_box = Nom
 duplicate_mode_size_combo_box = Taille
 duplicate_mode_hash_combo_box = Hachage
@@ -203,6 +220,11 @@ popover_custom_case_sensitive_check_button = Sensible à la casse
 popover_custom_all_in_group_label = Ne pas sélectionner tous les enregistrements du groupe
 popover_custom_mode_unselect = Désélectionner la personnalisation
 popover_custom_mode_select = Sélectionner la personnalisation
+popover_sort_file_name = Nom du fichier
+popover_sort_folder_name = Nom dossier
+popover_sort_full_name = Nom
+popover_sort_size = Taille
+popover_sort_selection = Sélection
 popover_invalid_regex = La regex est invalide
 popover_valid_regex = La regex est valide
 # Bottom buttons
@@ -213,6 +235,7 @@ bottom_save_button = Enregistrer
 bottom_symlink_button = Lien symbolique
 bottom_hardlink_button = Lien dur
 bottom_move_button = Déplacer
+bottom_sort_button = Trier
 bottom_search_button_tooltip = Lancer la recherche
 bottom_select_button_tooltip = Sélectionnez les enregistrements. Seuls les fichiers/dossiers sélectionnés peuvent être traités plus tard.
 bottom_delete_button_tooltip = Supprimer les fichiers/dossiers sélectionnés.
@@ -225,10 +248,16 @@ bottom_hardlink_button_tooltip =
     Créer des liens durs.
     Ne fonctionne que si au moins deux résultats dans un groupe sont sélectionnés.
     Le premier est inchangé et le second et plus tard sont hardliés au premier.
+bottom_hardlink_button_not_available_tooltip =
+    Créer des liens durs.
+    Le bouton est désactivé, car des liens durs ne peuvent être créés.
+    Les liens durs ne fonctionnent qu’avec les privilèges administrateur sous Windows pour être sûr d’exécuter l’application en tant qu’administrateur.
+    Si l’application fonctionne déjà avec ces privilèges, vérifiez les signalements de bogues similaires sur GitHub.
 bottom_move_button_tooltip =
     Déplace les fichiers vers le répertoire choisi.
     Il copie tous les fichiers dans le répertoire sans préserver l'arborescence des répertoires.
     En essayant de déplacer deux fichiers avec le même nom vers le dossier, le second échouera et affichera l'erreur.
+bottom_sort_button_tooltip = Trie les fichiers/dossiers selon la méthode sélectionnée.
 bottom_show_errors_tooltip = Afficher/Masquer le panneau de texte du bas.
 bottom_show_upper_notebook_tooltip = Afficher/Masquer le panneau supérieur du bloc-notes.
 # Progress Window
@@ -252,6 +281,9 @@ header_about_button_tooltip = Ouvre la boîte de dialogue avec les informations 
 
 ## General
 
+settings_number_of_threads = Nombre de threads utilisés
+settings_number_of_threads_tooltip = Nombre de threads utilisés, 0 signifie que tous les threads disponibles seront utilisés.
+settings_label_restart = Vous devez redémarrer l’application pour appliquer les paramètres !
 settings_ignore_other_filesystems = Ignorer les autres systèmes de fichiers (uniquement Linux)
 settings_ignore_other_filesystems_tooltip =
     ignore les fichiers qui ne sont pas dans le même système de fichiers que les répertoires recherchés.
@@ -373,8 +405,11 @@ progress_scanning_image = Hachage de l'image { $file_checked }/{ $all_files }
 progress_comparing_image_hashes = Comparaison du hachage de l'image { $file_checked }/{ $all_files }
 progress_scanning_music_tags_end = Comparaison des tags du fichier de musique { $file_checked }/{ $all_files }
 progress_scanning_music_tags = Lecture des balises du fichier de musique { $file_checked }/{ $all_files }
+progress_scanning_music_content_end = Comparaison de l'empreinte digitale du fichier de musique { $file_checked }/{ $all_files }
+progress_scanning_music_content = Calcul de l'empreinte digitale du fichier de musique { $file_checked }/{ $all_files }
 progress_scanning_empty_folders = Analyse du dossier { $folder_number }
 progress_scanning_size = Analyse de la taille du fichier { $file_number }
+progress_scanning_size_name = Analyse du nom et de la taille du fichier { $file_number }
 progress_scanning_name = Analyse du nom du fichier { $file_number }
 progress_analyzed_partial_hash = Hash partiel analysé des fichiers { $file_checked }/{ $all_files }
 progress_analyzed_full_hash = Hash complet analysé des fichiers { $file_checked }/{ $all_files }

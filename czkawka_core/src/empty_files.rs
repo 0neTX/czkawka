@@ -3,12 +3,11 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufWriter;
 use std::path::PathBuf;
-use std::time::SystemTime;
 
 use crossbeam_channel::Receiver;
+use futures::channel::mpsc::UnboundedSender;
 
-use crate::common::Common;
-use crate::common_dir_traversal::{DirTraversalBuilder, DirTraversalResult, FileEntry, ProgressData};
+use crate::common_dir_traversal::{DirTraversalBuilder, DirTraversalResult, FileEntry, ProgressData, ToolType};
 use crate::common_directory::Directories;
 use crate::common_extensions::Extensions;
 use crate::common_items::ExcludedItems;
@@ -28,6 +27,7 @@ pub struct Info {
 }
 
 impl Info {
+    #[must_use]
     pub fn new() -> Self {
         Default::default()
     }
@@ -35,6 +35,8 @@ impl Info {
 
 /// Struct with required information's to work
 pub struct EmptyFiles {
+    #[allow(dead_code)]
+    tool_type: ToolType,
     text_messages: Messages,
     information: Info,
     empty_files: Vec<FileEntry>,
@@ -47,8 +49,10 @@ pub struct EmptyFiles {
 }
 
 impl EmptyFiles {
+    #[must_use]
     pub fn new() -> Self {
         Self {
+            tool_type: ToolType::EmptyFiles,
             text_messages: Messages::new(),
             information: Info::new(),
             recursive_search: true,
@@ -62,7 +66,7 @@ impl EmptyFiles {
     }
 
     /// Finding empty files, save results to internal struct variables
-    pub fn find_empty_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&futures::channel::mpsc::UnboundedSender<ProgressData>>) {
+    pub fn find_empty_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&UnboundedSender<ProgressData>>) {
         self.directories.optimize_directories(self.recursive_search, &mut self.text_messages);
         if !self.check_files(stop_receiver, progress_sender) {
             self.stopped_search = true;
@@ -72,18 +76,22 @@ impl EmptyFiles {
         self.debug_print();
     }
 
+    #[must_use]
     pub fn get_stopped_search(&self) -> bool {
         self.stopped_search
     }
 
+    #[must_use]
     pub const fn get_empty_files(&self) -> &Vec<FileEntry> {
         &self.empty_files
     }
 
+    #[must_use]
     pub const fn get_text_messages(&self) -> &Messages {
         &self.text_messages
     }
 
+    #[must_use]
     pub const fn get_information(&self) -> &Info {
         &self.information
     }
@@ -119,7 +127,7 @@ impl EmptyFiles {
     }
 
     /// Check files for any with size == 0
-    fn check_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&futures::channel::mpsc::UnboundedSender<ProgressData>>) -> bool {
+    fn check_files(&mut self, stop_receiver: Option<&Receiver<()>>, progress_sender: Option<&UnboundedSender<ProgressData>>) -> bool {
         let result = DirTraversalBuilder::new()
             .root_dirs(self.directories.included_directories.clone())
             .group_by(|_fe| ())
@@ -134,17 +142,13 @@ impl EmptyFiles {
             .build()
             .run();
         match result {
-            DirTraversalResult::SuccessFiles {
-                start_time,
-                grouped_file_entries,
-                warnings,
-            } => {
+            DirTraversalResult::SuccessFiles { grouped_file_entries, warnings } => {
                 if let Some(empty_files) = grouped_file_entries.get(&()) {
                     self.empty_files = empty_files.clone();
                 }
                 self.information.number_of_empty_files = self.empty_files.len();
                 self.text_messages.warnings.extend(warnings);
-                Common::print_time(start_time, SystemTime::now(), "check_files_name".to_string());
+
                 true
             }
             DirTraversalResult::SuccessFolders { .. } => {
@@ -156,8 +160,6 @@ impl EmptyFiles {
 
     /// Function to delete files, from filed Vector
     fn delete_files(&mut self) {
-        let start_time: SystemTime = SystemTime::now();
-
         match self.delete_method {
             DeleteMethod::Delete => {
                 for file_entry in &self.empty_files {
@@ -170,8 +172,6 @@ impl EmptyFiles {
                 //Just do nothing
             }
         }
-
-        Common::print_time(start_time, SystemTime::now(), "delete_files".to_string());
     }
 }
 
@@ -213,7 +213,6 @@ impl DebugPrint for EmptyFiles {
 
 impl SaveResults for EmptyFiles {
     fn save_results_to_file(&mut self, file_name: &str) -> bool {
-        let start_time: SystemTime = SystemTime::now();
         let file_name: String = match file_name {
             "" => "results.txt".to_string(),
             k => k.to_string(),
@@ -222,7 +221,7 @@ impl SaveResults for EmptyFiles {
         let file_handler = match File::create(&file_name) {
             Ok(t) => t,
             Err(e) => {
-                self.text_messages.errors.push(format!("Failed to create file {}, reason {}", file_name, e));
+                self.text_messages.errors.push(format!("Failed to create file {file_name}, reason {e}"));
                 return false;
             }
         };
@@ -233,19 +232,19 @@ impl SaveResults for EmptyFiles {
             "Results of searching {:?} with excluded directories {:?} and excluded items {:?}",
             self.directories.included_directories, self.directories.excluded_directories, self.excluded_items.items
         ) {
-            self.text_messages.errors.push(format!("Failed to save results to file {}, reason {}", file_name, e));
+            self.text_messages.errors.push(format!("Failed to save results to file {file_name}, reason {e}"));
             return false;
         }
 
         if !self.empty_files.is_empty() {
             writeln!(writer, "Found {} empty files.", self.information.number_of_empty_files).unwrap();
-            for file_entry in self.empty_files.iter() {
+            for file_entry in &self.empty_files {
                 writeln!(writer, "{}", file_entry.path.display()).unwrap();
             }
         } else {
             write!(writer, "Not found any empty files.").unwrap();
         }
-        Common::print_time(start_time, SystemTime::now(), "save_results_to_file".to_string());
+
         true
     }
 }
@@ -254,12 +253,9 @@ impl PrintResults for EmptyFiles {
     /// Print information's about duplicated entries
     /// Only needed for CLI
     fn print_results(&self) {
-        let start_time: SystemTime = SystemTime::now();
         println!("Found {} empty files.\n", self.information.number_of_empty_files);
-        for file_entry in self.empty_files.iter() {
+        for file_entry in &self.empty_files {
             println!("{}", file_entry.path.display());
         }
-
-        Common::print_time(start_time, SystemTime::now(), "print_entries".to_string());
     }
 }
